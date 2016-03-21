@@ -50,9 +50,7 @@ This library provide an easy way to generate the SAML request and then supports 
 
 ## ADFS
 
-To configure ADFS to work with this library, you should:
-
-In the MMC snap-in for ADFS, add a Relying Party Trust with the following properties:
+To configure ADFS to work with this library, you should go to the MMC snap-in for ADFS and add a Relying Party Trust with the following properties:
 
 * In the Identifiers tab, add a Relying Party Identifier that will match the one you'll provide when initializing `SamlClient`.
 * In the Endpoints tab, add the url that will process SAML responses to the list, using `POST` for the Binding value.
@@ -61,4 +59,7 @@ Then, to obtain the metadata provider XML, load this url in your browser: https:
 
 ## Okta
 
-TODO
+To configure Okta to work with this library, create an SAML 2.0 application with the following settings:
+
+* The *Single sign on URL* should be the URL that processes SAML responses (e.g. assertions).
+* The *Audience URI* should be a value that matches the one you'll specify when initializing `SamlClient`.
