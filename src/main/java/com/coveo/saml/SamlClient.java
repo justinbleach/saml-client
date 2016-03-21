@@ -51,6 +51,7 @@ import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.namespace.QName;
 import java.io.*;
@@ -62,69 +63,57 @@ public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
   private static boolean initializedOpenSaml = false;
 
-  private String identifier;
+  private String relyingPartyIdentifier;
   private String assertionConsumerServiceUrl;
-  private String authenticationUrl;
-  private String issuer;
+  private String identityProviderUrl;
+  private String responseIssuer;
   private Credential credential;
 
   /**
    * Constructs an SAML client using explicit parameters.
-   * @param identifier the identifier of the relying party.
+   * @param relyingPartyIdentifier the identifier of the relying party.
    * @param assertionConsumerServiceUrl the url where the identity provider will post back the SAML response.
-   * @param authenticationUrl the url where the SAML request will be submitted.
-   * @param issuer the expected issuer ID for SAML responses.
+   * @param identityProviderUrl the url where the SAML request will be submitted.
+   * @param responseIssuer the expected issuer ID for SAML responses.
    * @param certificate the base-64 encoded certificate to use to validate responses.
    * @throws SamlException thrown if any error occur while loading the provider information.
    */
   public SamlClient(
-      String identifier,
+      String relyingPartyIdentifier,
       String assertionConsumerServiceUrl,
-      String authenticationUrl,
-      String issuer,
-      String certificate)
+      String identityProviderUrl,
+      String responseIssuer,
+      X509Certificate certificate)
       throws SamlException {
 
     ensureOpenSamlIsInitialized();
 
-    this.identifier = identifier;
+    if (relyingPartyIdentifier == null) {
+      throw new IllegalArgumentException("relyingPartyIdentifier");
+    }
+    if (identityProviderUrl == null) {
+      throw new IllegalArgumentException("identityProviderUrl");
+    }
+    if (responseIssuer == null) {
+      throw new IllegalArgumentException("responseIssuer");
+    }
+    if (certificate == null) {
+      throw new IllegalArgumentException("certificate");
+    }
+
+    this.relyingPartyIdentifier = relyingPartyIdentifier;
     this.assertionConsumerServiceUrl = assertionConsumerServiceUrl;
-    this.authenticationUrl = authenticationUrl;
-    this.issuer = issuer;
-    X509Certificate x509Certificate = getCertificate(certificate);
-    credential = getCredential(x509Certificate);
-  }
-
-  /**
-   * Constructs an SAML client using XML metadata obtained from the identity provider.
-   * @param identifier the identifier of the relying party.
-   * @param assertionConsumerServiceUrl the url where the identity provider will post back the SAML response.
-   * @param metadata the XML metadata obtained from the identity provider.
-   * @throws SamlException thrown if any error occur while loading the metadata information.
-   */
-  public SamlClient(String identifier, String assertionConsumerServiceUrl, Reader metadata)
-      throws SamlException {
-
-    ensureOpenSamlIsInitialized();
-
-    this.identifier = identifier;
-    this.assertionConsumerServiceUrl = assertionConsumerServiceUrl;
-    MetadataProvider metadataProvider = createMetadataProvider(metadata);
-    EntityDescriptor entityDescriptor = getEntityDescriptor(metadataProvider);
-    issuer = entityDescriptor.getEntityID();
-    IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
-    SingleSignOnService postBinding = getPostBinding(idpSsoDescriptor);
-    authenticationUrl = postBinding.getLocation();
-    X509Certificate x509Certificate = getCertificate(idpSsoDescriptor);
-    credential = getCredential(x509Certificate);
+    this.identityProviderUrl = identityProviderUrl;
+    this.responseIssuer = responseIssuer;
+    credential = getCredential(certificate);
   }
 
   /**
    * Returns the url where SAML requests should be posted.
    * @return the url where SAML requests should be posted.
    */
-  public String getAuthenticationUrl() {
-    return authenticationUrl;
+  public String getIdentityProviderUrl() {
+    return identityProviderUrl;
   }
 
   /**
@@ -142,7 +131,7 @@ public class SamlClient {
     request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
-    issuer.setValue(identifier);
+    issuer.setValue(relyingPartyIdentifier);
     request.setIssuer(issuer);
 
     NameIDPolicy nameIDPolicy = (NameIDPolicy) buildSamlObject(NameIDPolicy.DEFAULT_ELEMENT_NAME);
@@ -176,24 +165,6 @@ public class SamlClient {
     } catch (UnsupportedEncodingException ex) {
       throw new SamlException("Error while encoding SAML request", ex);
     }
-  }
-
-  /**
-   * Redirects an {@link HttpServletResponse} to the configured identity provider.
-   * @param response The {@link HttpServletResponse}.
-   * @param relayState Optional relay state that will be passed along.
-   * @throws IOException thrown if an IO error occurs.
-   * @throws SamlException thrown is an unexpected error occurs.
-   */
-  public void redirectToIdentityProvider(HttpServletResponse response, String relayState)
-      throws IOException, SamlException {
-    Map<String, String> values = new HashMap<String, String>();
-    values.put("SAMLRequest", getSamlRequest());
-    if (relayState != null) {
-      values.put("RelayState", relayState);
-    }
-
-    BrowserUtils.postUsingBrowser(authenticationUrl, response, values);
   }
 
   /**
@@ -233,6 +204,89 @@ public class SamlClient {
     return new SamlResponse(assertion);
   }
 
+  /**
+   * Redirects an {@link HttpServletResponse} to the configured identity provider.
+   * @param response The {@link HttpServletResponse}.
+   * @param relayState Optional relay state that will be passed along.
+   * @throws IOException thrown if an IO error occurs.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public void redirectToIdentityProvider(HttpServletResponse response, String relayState)
+      throws IOException, SamlException {
+    Map<String, String> values = new HashMap<>();
+    values.put("SAMLRequest", getSamlRequest());
+    if (relayState != null) {
+      values.put("RelayState", relayState);
+    }
+
+    BrowserUtils.postUsingBrowser(identityProviderUrl, response, values);
+  }
+
+  /**
+   * Processes a POST containing the SAML response.
+   * @param request the {@link HttpServletRequest}.
+   * @return An {@link SamlResponse} object containing information decoded from the SAML response.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public SamlResponse processPostFromIdentityProvider(HttpServletRequest request)
+      throws SamlException {
+    String encodedResponse = request.getParameter("SAMLResponse");
+    return decodeAndValidateSamlResponse(encodedResponse);
+  }
+
+  /**
+   * Constructs an SAML client using XML metadata obtained from the identity provider.
+   * <p>
+   * When using Okta as an identity provider, it is possible to pass null to relyingPartyIdentifier and assertionConsumerServiceUrl; they will be inferred from the metadata provider XML.
+   * @param relyingPartyIdentifier the identifier for the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the SAML response.
+   * @param metadata the XML metadata obtained from the identity provider.
+   * @return The created {@link SamlClient}.
+   * @throws SamlException thrown if any error occur while loading the metadata information.
+   */
+  public static SamlClient fromMetadata(
+      String relyingPartyIdentifier, String assertionConsumerServiceUrl, Reader metadata)
+      throws SamlException {
+
+    ensureOpenSamlIsInitialized();
+
+    MetadataProvider metadataProvider = createMetadataProvider(metadata);
+    EntityDescriptor entityDescriptor = getEntityDescriptor(metadataProvider);
+
+    IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
+    SingleSignOnService postBinding = getPostBinding(idpSsoDescriptor);
+    X509Certificate x509Certificate = getCertificate(idpSsoDescriptor);
+    boolean isOkta = entityDescriptor.getEntityID().contains(".okta.com");
+
+    if (relyingPartyIdentifier == null) {
+      // Okta's own toolkit uses the entity ID as a relying party identifier, so if we
+      // detect that the IDP is Okta let's tolerate a null value for this parameter.
+      if (isOkta) {
+        relyingPartyIdentifier = entityDescriptor.getEntityID();
+      } else {
+        throw new IllegalArgumentException("relyingPartyIdentifier");
+      }
+    }
+
+    if (assertionConsumerServiceUrl == null && isOkta) {
+      // Again, Okta's own toolkit uses this value for the assertion consumer url, which
+      // kinda makes no sense since this is supposed to be a url pointing to a server
+      // outside Okta, but it probably just straight ignores this and use the one from
+      // it's own config anyway.
+      assertionConsumerServiceUrl = postBinding.getLocation();
+    }
+
+    String identityProviderUrl = postBinding.getLocation();
+    String responseIssuer = entityDescriptor.getEntityID();
+
+    return new SamlClient(
+        relyingPartyIdentifier,
+        assertionConsumerServiceUrl,
+        identityProviderUrl,
+        responseIssuer,
+        x509Certificate);
+  }
+
   private void validateResponse(Response response) throws SamlException {
     try {
       new ResponseSchemaValidator().validate(response);
@@ -240,16 +294,14 @@ public class SamlClient {
       throw new SamlException("The response schema validation failed", ex);
     }
 
-    if (!response.getIssuer().getValue().equals(issuer)) {
+    if (!response.getIssuer().getValue().equals(responseIssuer)) {
       throw new SamlException("The response issuer didn't match the expected value");
     }
 
-    if (!response
-        .getStatus()
-        .getStatusCode()
-        .getValue()
-        .equals("urn:oasis:names:tc:SAML:2.0:status:Success")) {
-      throw new SamlException("Invalid status code");
+    String statusCode = response.getStatus().getStatusCode().getValue();
+
+    if (!statusCode.equals("urn:oasis:names:tc:SAML:2.0:status:Success")) {
+      throw new SamlException("Invalid status code: " + statusCode);
     }
   }
 
@@ -259,7 +311,7 @@ public class SamlClient {
     }
 
     Assertion assertion = response.getAssertions().get(0);
-    if (!assertion.getIssuer().getValue().equals(issuer)) {
+    if (!assertion.getIssuer().getValue().equals(responseIssuer)) {
       throw new SamlException("The assertion issuer didn't match the expected value");
     }
 
