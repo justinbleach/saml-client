@@ -1,10 +1,19 @@
 package com.coveo.saml;
 
 import com.sun.org.apache.xerces.internal.parsers.DOMParser;
+
 import org.joda.time.DateTime;
 import org.opensaml.DefaultBootstrap;
 import org.opensaml.common.SAMLVersion;
-import org.opensaml.saml2.core.*;
+import org.opensaml.saml2.core.Assertion;
+import org.opensaml.saml2.core.AuthnContextClassRef;
+import org.opensaml.saml2.core.AuthnContextComparisonTypeEnumeration;
+import org.opensaml.saml2.core.AuthnRequest;
+import org.opensaml.saml2.core.Conditions;
+import org.opensaml.saml2.core.Issuer;
+import org.opensaml.saml2.core.NameIDPolicy;
+import org.opensaml.saml2.core.RequestedAuthnContext;
+import org.opensaml.saml2.core.Response;
 import org.opensaml.saml2.core.validator.ResponseSchemaValidator;
 import org.opensaml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml2.metadata.IDPSSODescriptor;
@@ -35,13 +44,22 @@ import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.namespace.QName;
-import java.io.*;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
-import java.util.*;
 
 public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
@@ -52,14 +70,36 @@ public class SamlClient {
   private String identityProviderUrl;
   private String responseIssuer;
   private Credential credential;
+  private DateTime now; // used for testing only
+
+  /**
+   * Returns the url where SAML requests should be posted.
+   *
+   * @return the url where SAML requests should be posted.
+   */
+  public String getIdentityProviderUrl() {
+    return identityProviderUrl;
+  }
+
+  /**
+   * Sets the date that will be considered as now. This is only useful for testing.
+   *
+   * @param now the date to use for now.
+   */
+  public void setDateTimeNow(DateTime now) {
+    this.now = now;
+  }
 
   /**
    * Constructs an SAML client using explicit parameters.
-   * @param relyingPartyIdentifier the identifier of the relying party.
-   * @param assertionConsumerServiceUrl the url where the identity provider will post back the SAML response.
-   * @param identityProviderUrl the url where the SAML request will be submitted.
-   * @param responseIssuer the expected issuer ID for SAML responses.
-   * @param certificate the base-64 encoded certificate to use to validate responses.
+   *
+   * @param relyingPartyIdentifier      the identifier of the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param identityProviderUrl         the url where the SAML request will be submitted.
+   * @param responseIssuer              the expected issuer ID for SAML responses.
+   * @param certificate                 the base-64 encoded certificate to use to validate
+   *                                    responses.
    * @throws SamlException thrown if any error occur while loading the provider information.
    */
   public SamlClient(
@@ -93,15 +133,8 @@ public class SamlClient {
   }
 
   /**
-   * Returns the url where SAML requests should be posted.
-   * @return the url where SAML requests should be posted.
-   */
-  public String getIdentityProviderUrl() {
-    return identityProviderUrl;
-  }
-
-  /**
    * Builds an encoded SAML request.
+   *
    * @return The base-64 encoded SAML request.
    * @throws SamlException thrown if an unexpected error occurs.
    */
@@ -153,6 +186,7 @@ public class SamlClient {
 
   /**
    * Decodes and validates an SAML response returned by an identity provider.
+   *
    * @param encodedResponse the encoded response returned by the identity provider.
    * @return An {@link SamlResponse} object containing information decoded from the SAML response.
    * @throws SamlException if the signature is invalid, or if any other error occurs.
@@ -190,9 +224,10 @@ public class SamlClient {
 
   /**
    * Redirects an {@link HttpServletResponse} to the configured identity provider.
-   * @param response The {@link HttpServletResponse}.
+   *
+   * @param response   The {@link HttpServletResponse}.
    * @param relayState Optional relay state that will be passed along.
-   * @throws IOException thrown if an IO error occurs.
+   * @throws IOException   thrown if an IO error occurs.
    * @throws SamlException thrown is an unexpected error occurs.
    */
   public void redirectToIdentityProvider(HttpServletResponse response, String relayState)
@@ -208,6 +243,7 @@ public class SamlClient {
 
   /**
    * Processes a POST containing the SAML response.
+   *
    * @param request the {@link HttpServletRequest}.
    * @return An {@link SamlResponse} object containing information decoded from the SAML response.
    * @throws SamlException thrown is an unexpected error occurs.
@@ -219,12 +255,14 @@ public class SamlClient {
   }
 
   /**
-   * Constructs an SAML client using XML metadata obtained from the identity provider.
-   * <p>
-   * When using Okta as an identity provider, it is possible to pass null to relyingPartyIdentifier and assertionConsumerServiceUrl; they will be inferred from the metadata provider XML.
-   * @param relyingPartyIdentifier the identifier for the relying party.
-   * @param assertionConsumerServiceUrl the url where the identity provider will post back the SAML response.
-   * @param metadata the XML metadata obtained from the identity provider.
+   * Constructs an SAML client using XML metadata obtained from the identity provider. <p> When
+   * using Okta as an identity provider, it is possible to pass null to relyingPartyIdentifier and
+   * assertionConsumerServiceUrl; they will be inferred from the metadata provider XML.
+   *
+   * @param relyingPartyIdentifier      the identifier for the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param metadata                    the XML metadata obtained from the identity provider.
    * @return The created {@link SamlClient}.
    * @throws SamlException thrown if any error occur while loading the metadata information.
    */
@@ -308,7 +346,7 @@ public class SamlClient {
   }
 
   private void enforceConditions(Conditions conditions) throws SamlException {
-    DateTime now = DateTime.now();
+    DateTime now = this.now != null ? this.now : DateTime.now();
 
     if (now.isBefore(conditions.getNotBefore())) {
       throw new SamlException(
@@ -317,7 +355,7 @@ public class SamlClient {
 
     if (now.isAfter(conditions.getNotOnOrAfter())) {
       throw new SamlException(
-          "The assertion cannot be after before " + conditions.getNotOnOrAfter().toString());
+          "The assertion cannot be used after  " + conditions.getNotOnOrAfter().toString());
     }
   }
 

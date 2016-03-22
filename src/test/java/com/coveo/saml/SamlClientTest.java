@@ -1,5 +1,7 @@
 package com.coveo.saml;
 
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Test;
 import org.opensaml.xml.util.Base64;
 
@@ -46,6 +48,7 @@ public class SamlClientTest {
   public void decodeAndValidateSamlResponseCanDecodeAnSamlResponse() throws Throwable {
     SamlClient client =
         SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"));
+    client.setDateTimeNow(new DateTime(2016, 3, 21, 17, 0, DateTimeZone.UTC));
     SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE);
     assertEquals("mlaporte@coveo.com", response.getNameID());
   }

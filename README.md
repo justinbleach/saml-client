@@ -8,6 +8,18 @@ In order to work, the library must be provided with the xml metadata information
 
 As of now, I've tested the library with ADFS and Okta as identity providers.
 
+# Maven
+
+Add this dependency to your `pom.xml` to reference the library:
+
+```xml
+    <dependency>
+      <groupId>com.coveo</groupId>
+      <artifactId>saml-client</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+```
+
 # Usage
 
 ## SAML authentication process overview

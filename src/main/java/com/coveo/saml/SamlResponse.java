@@ -11,6 +11,7 @@ public class SamlResponse {
 
   /**
    * Retrieves the {@link Assertion} for the SAML response.
+   *
    * @return The assertion for the SAML response.
    */
   public Assertion getAssertion() {
@@ -18,7 +19,9 @@ public class SamlResponse {
   }
 
   /**
-   * Retrieves the Name ID from the SAML response. This is normally the name of the authenticated user.
+   * Retrieves the Name ID from the SAML response. This is normally the name of the authenticated
+   * user.
+   *
    * @return The Name ID from the SAML response.
    */
   public String getNameID() {
