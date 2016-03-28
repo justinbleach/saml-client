@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/coveo/saml-client.svg?branch=master)](https://travis-ci.org/coveo/saml-client)
-[![license](http://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://github.com/coveo/saml-client/blob/master/LICENSE)
+[![MIT license](http://img.shields.io/badge/license-MIT-brightgreen.svg)](https://github.com/coveo/saml-client/blob/master/LICENSE)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.coveo/saml-client/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.coveo/saml-client)
 
 # Dead Simple SAML 2.0 Client
 
