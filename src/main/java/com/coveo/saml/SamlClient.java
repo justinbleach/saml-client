@@ -6,13 +6,10 @@ import org.joda.time.DateTime;
 import org.opensaml.DefaultBootstrap;
 import org.opensaml.common.SAMLVersion;
 import org.opensaml.saml2.core.Assertion;
-import org.opensaml.saml2.core.AuthnContextClassRef;
-import org.opensaml.saml2.core.AuthnContextComparisonTypeEnumeration;
 import org.opensaml.saml2.core.AuthnRequest;
 import org.opensaml.saml2.core.Conditions;
 import org.opensaml.saml2.core.Issuer;
 import org.opensaml.saml2.core.NameIDPolicy;
-import org.opensaml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml2.core.Response;
 import org.opensaml.saml2.core.validator.ResponseSchemaValidator;
 import org.opensaml.saml2.metadata.EntityDescriptor;
@@ -154,17 +151,6 @@ public class SamlClient {
     NameIDPolicy nameIDPolicy = (NameIDPolicy) buildSamlObject(NameIDPolicy.DEFAULT_ELEMENT_NAME);
     nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
     request.setNameIDPolicy(nameIDPolicy);
-
-    RequestedAuthnContext requestedAuthnContext =
-        (RequestedAuthnContext) buildSamlObject(RequestedAuthnContext.DEFAULT_ELEMENT_NAME);
-    requestedAuthnContext.setComparison(AuthnContextComparisonTypeEnumeration.EXACT);
-    request.setRequestedAuthnContext(requestedAuthnContext);
-
-    AuthnContextClassRef authnContextClassRef =
-        (AuthnContextClassRef) buildSamlObject(AuthnContextClassRef.DEFAULT_ELEMENT_NAME);
-    authnContextClassRef.setAuthnContextClassRef(
-        "urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport");
-    requestedAuthnContext.getAuthnContextClassRefs().add(authnContextClassRef);
 
     StringWriter stringWriter = new StringWriter();
     try {
