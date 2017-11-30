@@ -28,6 +28,7 @@ import org.opensaml.xml.security.credential.Credential;
 import org.opensaml.xml.security.credential.UsageType;
 import org.opensaml.xml.security.keyinfo.KeyInfoHelper;
 import org.opensaml.xml.security.x509.BasicX509Credential;
+import org.opensaml.xml.security.x509.X509Util;
 import org.opensaml.xml.signature.Signature;
 import org.opensaml.xml.signature.SignatureValidator;
 import org.opensaml.xml.signature.X509Data;
@@ -442,35 +443,48 @@ public class SamlClient {
         .orElseThrow(() -> new SamlException("Cannot find HTTP-POST SSO binding in metadata"));
   }
 
-  private static X509Certificate getCertificate(IDPSSODescriptor idpSsoDescriptor)
+  private static List<X509Certificate> getCertificates(IDPSSODescriptor idpSsoDescriptor)
       throws SamlException {
-    KeyDescriptor keyDescriptor =
-        idpSsoDescriptor
-            .getKeyDescriptors()
-            .stream()
-            .filter(x -> x.getUse() == UsageType.SIGNING)
-            .findAny()
-            .orElseThrow(() -> new SamlException("Cannot find signing certificate"));
 
-    X509Data data =
-        keyDescriptor
-            .getKeyInfo()
-            .getX509Datas()
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> new SamlException("Cannot find X509 data"));
-
-    org.opensaml.xml.signature.X509Certificate certificate =
-        data.getX509Certificates()
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> new SamlException("Cannot find X509 certificate"));
+    List<X509Certificate> certificates;
 
     try {
-      return KeyInfoHelper.getCertificate(certificate);
-    } catch (CertificateException ex) {
-      throw new SamlException("Cannot load signing certificate", ex);
+      certificates =
+          idpSsoDescriptor
+              .getKeyDescriptors()
+              .stream()
+              .filter(x -> x.getUse() == UsageType.SIGNING)
+              .flatMap(SamlClient::getDatasWithCertificates)
+              .map(SamlClient::getFirstCertificate)
+              .collect(Collectors.toList());
+
+    } catch (Exception e) {
+      throw new SamlException("Exception in getCertificates", e);
     }
+
+    return certificates;
+  }
+
+  private static Stream<X509Data> getDatasWithCertificates(KeyDescriptor descriptor) {
+    return descriptor
+        .getKeyInfo()
+        .getX509Datas()
+        .stream()
+        .filter(d -> d.getX509Certificates().size() > 0);
+  }
+
+  private static X509Certificate getFirstCertificate(X509Data data) {
+    try {
+      org.opensaml.xml.signature.X509Certificate cert =
+          data.getX509Certificates().stream().findFirst().orElse(null);
+      if (cert != null) {
+        return KeyInfoHelper.getCertificate(cert);
+      }
+    } catch (CertificateException e) {
+      logger.error("Exception in getFirstCertificate", e);
+    }
+
+    return null;
   }
 
   private static X509Certificate getCertificate(String certificate) throws SamlException {
@@ -486,7 +500,7 @@ public class SamlClient {
     }
   }
 
-  private static Credential getCredential(X509Certificate certificate) throws SamlException {
+  private static Credential getCredential(X509Certificate certificate) {
     BasicX509Credential credential = new BasicX509Credential();
     credential.setEntityCertificate(certificate);
     credential.setPublicKey(certificate.getPublicKey());
