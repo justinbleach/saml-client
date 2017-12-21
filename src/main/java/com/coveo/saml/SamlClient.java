@@ -140,20 +140,19 @@ public class SamlClient {
    * @throws SamlException thrown if any error occur while loading the provider information.
    */
   public SamlClient(
-          String relyingPartyIdentifier,
-          String assertionConsumerServiceUrl,
-          String identityProviderUrl,
-          String responseIssuer,
-          X509Certificate certificate)
-          throws SamlException {
+      String relyingPartyIdentifier,
+      String assertionConsumerServiceUrl,
+      String identityProviderUrl,
+      String responseIssuer,
+      X509Certificate certificate)
+      throws SamlException {
 
     this(
-      relyingPartyIdentifier,
-      assertionConsumerServiceUrl,
-      identityProviderUrl,
-      responseIssuer,
-      Collections.singletonList(certificate)
-    );
+        relyingPartyIdentifier,
+        assertionConsumerServiceUrl,
+        identityProviderUrl,
+        responseIssuer,
+        Collections.singletonList(certificate));
   }
 
   /**
@@ -388,15 +387,18 @@ public class SamlClient {
     }
 
     // It's fine if any of the credentials match the signature
-    return credentials.stream().anyMatch(c -> {
-      try {
-        SignatureValidator signatureValidator = new SignatureValidator(c);
-        signatureValidator.validate(signature);
-        return true;
-      } catch (ValidationException ex) {
-        return false;
-      }
-    });
+    return credentials
+        .stream()
+        .anyMatch(
+            c -> {
+              try {
+                SignatureValidator signatureValidator = new SignatureValidator(c);
+                signatureValidator.validate(signature);
+                return true;
+              } catch (ValidationException ex) {
+                return false;
+              }
+            });
   }
 
   private boolean validateResponseSignature(Response response) throws SamlException {
