@@ -61,4 +61,13 @@ public class SamlClientTest {
         SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"));
     client.decodeAndValidateSamlResponse(Base64.encodeBytes(tampered.getBytes("UTF-8")));
   }
+
+  @Test
+  public void decodeAndValidateSamlResponseWorksWithCertsInDifferentOrder() throws Throwable {
+    SamlClient client =
+            SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs2.xml"));
+    client.setDateTimeNow(new DateTime(2016, 3, 21, 17, 0, DateTimeZone.UTC));
+    SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE);
+    assertEquals("mlaporte@coveo.com", response.getNameID());
+  }
 }

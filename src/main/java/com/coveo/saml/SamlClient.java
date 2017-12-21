@@ -48,11 +48,9 @@ import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -66,7 +64,7 @@ public class SamlClient {
   private String assertionConsumerServiceUrl;
   private String identityProviderUrl;
   private String responseIssuer;
-  private Credential credential;
+  private List<Credential> credentials;
   private DateTime now; // used for testing only
 
   /**
@@ -95,7 +93,7 @@ public class SamlClient {
    *                                    SAML response.
    * @param identityProviderUrl         the url where the SAML request will be submitted.
    * @param responseIssuer              the expected issuer ID for SAML responses.
-   * @param certificate                 the base-64 encoded certificate to use to validate
+   * @param certificates                the list of base-64 encoded certificates to use to validate
    *                                    responses.
    * @throws SamlException thrown if any error occur while loading the provider information.
    */
@@ -104,7 +102,7 @@ public class SamlClient {
       String assertionConsumerServiceUrl,
       String identityProviderUrl,
       String responseIssuer,
-      X509Certificate certificate)
+      List<X509Certificate> certificates)
       throws SamlException {
 
     ensureOpenSamlIsInitialized();
@@ -118,15 +116,44 @@ public class SamlClient {
     if (responseIssuer == null) {
       throw new IllegalArgumentException("responseIssuer");
     }
-    if (certificate == null) {
-      throw new IllegalArgumentException("certificate");
+    if (certificates == null || certificates.isEmpty()) {
+      throw new IllegalArgumentException("certificates");
     }
 
     this.relyingPartyIdentifier = relyingPartyIdentifier;
     this.assertionConsumerServiceUrl = assertionConsumerServiceUrl;
     this.identityProviderUrl = identityProviderUrl;
     this.responseIssuer = responseIssuer;
-    credential = getCredential(certificate);
+    credentials = certificates.stream().map(SamlClient::getCredential).collect(Collectors.toList());
+  }
+
+  /**
+   * Constructs an SAML client using explicit parameters.
+   *
+   * @param relyingPartyIdentifier      the identifier of the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param identityProviderUrl         the url where the SAML request will be submitted.
+   * @param responseIssuer              the expected issuer ID for SAML responses.
+   * @param certificate                 the base-64 encoded certificate to use to validate
+   *                                    responses.
+   * @throws SamlException thrown if any error occur while loading the provider information.
+   */
+  public SamlClient(
+          String relyingPartyIdentifier,
+          String assertionConsumerServiceUrl,
+          String identityProviderUrl,
+          String responseIssuer,
+          X509Certificate certificate)
+          throws SamlException {
+
+    this(
+      relyingPartyIdentifier,
+      assertionConsumerServiceUrl,
+      identityProviderUrl,
+      responseIssuer,
+      Collections.singletonList(certificate)
+    );
   }
 
   /**
@@ -263,7 +290,7 @@ public class SamlClient {
 
     IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
     SingleSignOnService postBinding = getPostBinding(idpSsoDescriptor);
-    X509Certificate x509Certificate = getCertificate(idpSsoDescriptor);
+    List<X509Certificate> x509Certificates = getCertificates(idpSsoDescriptor);
     boolean isOkta = entityDescriptor.getEntityID().contains(".okta.com");
 
     if (relyingPartyIdentifier == null) {
@@ -292,7 +319,7 @@ public class SamlClient {
         assertionConsumerServiceUrl,
         identityProviderUrl,
         responseIssuer,
-        x509Certificate);
+        x509Certificates);
   }
 
   private void validateResponse(Response response) throws SamlException {
@@ -355,36 +382,32 @@ public class SamlClient {
     }
   }
 
-  private boolean validateResponseSignature(Response response) throws SamlException {
-    Signature signature = response.getSignature();
+  private boolean validate(Signature signature) {
     if (signature == null) {
       return false;
     }
 
-    try {
-      SignatureValidator signatureValidator = new SignatureValidator(credential);
-      signatureValidator.validate(signature);
-      return true;
-    } catch (ValidationException ex) {
-      throw new SamlException("Invalid response signature", ex);
-    }
+    // It's fine if any of the credentials match the signature
+    return credentials.stream().anyMatch(c -> {
+      try {
+        SignatureValidator signatureValidator = new SignatureValidator(c);
+        signatureValidator.validate(signature);
+        return true;
+      } catch (ValidationException ex) {
+        return false;
+      }
+    });
+  }
+
+  private boolean validateResponseSignature(Response response) throws SamlException {
+    Signature signature = response.getSignature();
+    return validate(signature);
   }
 
   private boolean validateAssertionSignature(Response response) throws SamlException {
+    // We assume that there is only one assertion in the response
     Assertion assertion = response.getAssertions().get(0);
-
-    Signature signature = assertion.getSignature();
-    if (signature == null) {
-      return false;
-    }
-
-    try {
-      SignatureValidator signatureValidator = new SignatureValidator(credential);
-      signatureValidator.validate(signature);
-      return true;
-    } catch (ValidationException ex) {
-      throw new SamlException("Invalid assertion signature", ex);
-    }
+    return validate(assertion.getSignature());
   }
 
   private synchronized static void ensureOpenSamlIsInitialized() throws SamlException {
@@ -449,35 +472,48 @@ public class SamlClient {
         .orElseThrow(() -> new SamlException("Cannot find HTTP-POST SSO binding in metadata"));
   }
 
-  private static X509Certificate getCertificate(IDPSSODescriptor idpSsoDescriptor)
+  private static List<X509Certificate> getCertificates(IDPSSODescriptor idpSsoDescriptor)
       throws SamlException {
-    KeyDescriptor keyDescriptor =
-        idpSsoDescriptor
-            .getKeyDescriptors()
-            .stream()
-            .filter(x -> x.getUse() == UsageType.SIGNING)
-            .findAny()
-            .orElseThrow(() -> new SamlException("Cannot find signing certificate"));
 
-    X509Data data =
-        keyDescriptor
-            .getKeyInfo()
-            .getX509Datas()
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> new SamlException("Cannot find X509 data"));
-
-    org.opensaml.xml.signature.X509Certificate certificate =
-        data.getX509Certificates()
-            .stream()
-            .findFirst()
-            .orElseThrow(() -> new SamlException("Cannot find X509 certificate"));
+    List<X509Certificate> certificates;
 
     try {
-      return KeyInfoHelper.getCertificate(certificate);
-    } catch (CertificateException ex) {
-      throw new SamlException("Cannot load signing certificate", ex);
+      certificates =
+          idpSsoDescriptor
+              .getKeyDescriptors()
+              .stream()
+              .filter(x -> x.getUse() == UsageType.SIGNING)
+              .flatMap(SamlClient::getDatasWithCertificates)
+              .map(SamlClient::getFirstCertificate)
+              .collect(Collectors.toList());
+
+    } catch (Exception e) {
+      throw new SamlException("Exception in getCertificates", e);
     }
+
+    return certificates;
+  }
+
+  private static Stream<X509Data> getDatasWithCertificates(KeyDescriptor descriptor) {
+    return descriptor
+        .getKeyInfo()
+        .getX509Datas()
+        .stream()
+        .filter(d -> d.getX509Certificates().size() > 0);
+  }
+
+  private static X509Certificate getFirstCertificate(X509Data data) {
+    try {
+      org.opensaml.xml.signature.X509Certificate cert =
+          data.getX509Certificates().stream().findFirst().orElse(null);
+      if (cert != null) {
+        return KeyInfoHelper.getCertificate(cert);
+      }
+    } catch (CertificateException e) {
+      logger.error("Exception in getFirstCertificate", e);
+    }
+
+    return null;
   }
 
   private static X509Certificate getCertificate(String certificate) throws SamlException {
@@ -493,7 +529,7 @@ public class SamlClient {
     }
   }
 
-  private static Credential getCredential(X509Certificate certificate) throws SamlException {
+  private static Credential getCredential(X509Certificate certificate) {
     BasicX509Credential credential = new BasicX509Credential();
     credential.setEntityCertificate(certificate);
     credential.setPublicKey(certificate.getPublicKey());
