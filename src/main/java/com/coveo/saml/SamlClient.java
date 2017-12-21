@@ -128,6 +128,35 @@ public class SamlClient {
   }
 
   /**
+   * Constructs an SAML client using explicit parameters.
+   *
+   * @param relyingPartyIdentifier      the identifier of the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param identityProviderUrl         the url where the SAML request will be submitted.
+   * @param responseIssuer              the expected issuer ID for SAML responses.
+   * @param certificate                 the base-64 encoded certificate to use to validate
+   *                                    responses.
+   * @throws SamlException thrown if any error occur while loading the provider information.
+   */
+  public SamlClient(
+          String relyingPartyIdentifier,
+          String assertionConsumerServiceUrl,
+          String identityProviderUrl,
+          String responseIssuer,
+          X509Certificate certificate)
+          throws SamlException {
+
+    this(
+      relyingPartyIdentifier,
+      assertionConsumerServiceUrl,
+      identityProviderUrl,
+      responseIssuer,
+      Collections.singletonList(certificate)
+    );
+  }
+
+  /**
    * Builds an encoded SAML request.
    *
    * @return The base-64 encoded SAML request.
