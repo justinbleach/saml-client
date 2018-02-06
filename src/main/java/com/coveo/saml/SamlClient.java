@@ -66,6 +66,7 @@ public class SamlClient {
   private String responseIssuer;
   private List<Credential> credentials;
   private DateTime now; // used for testing only
+  private Boolean useRedirect;
 
   /**
    * Returns the url where SAML requests should be posted.
@@ -95,6 +96,7 @@ public class SamlClient {
    * @param responseIssuer              the expected issuer ID for SAML responses.
    * @param certificates                the list of base-64 encoded certificates to use to validate
    *                                    responses.
+   * @param useRedirect                 if client should use HTTP-Redirect instead of HTTP-POST
    * @throws SamlException thrown if any error occur while loading the provider information.
    */
   public SamlClient(
@@ -102,7 +104,8 @@ public class SamlClient {
       String assertionConsumerServiceUrl,
       String identityProviderUrl,
       String responseIssuer,
-      List<X509Certificate> certificates)
+      List<X509Certificate> certificates,
+      Boolean useRedirect)
       throws SamlException {
 
     ensureOpenSamlIsInitialized();
@@ -125,6 +128,36 @@ public class SamlClient {
     this.identityProviderUrl = identityProviderUrl;
     this.responseIssuer = responseIssuer;
     credentials = certificates.stream().map(SamlClient::getCredential).collect(Collectors.toList());
+    this.useRedirect = useRedirect;
+  }
+
+  /**
+   * Constructs an SAML client using explicit parameters.
+   *
+   * @param relyingPartyIdentifier      the identifier of the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param identityProviderUrl         the url where the SAML request will be submitted.
+   * @param responseIssuer              the expected issuer ID for SAML responses.
+   * @param certificates                the list of base-64 encoded certificates to use to validate
+   *                                    responses.
+   * @throws SamlException thrown if any error occur while loading the provider information.
+   */
+  public SamlClient(
+      String relyingPartyIdentifier,
+      String assertionConsumerServiceUrl,
+      String identityProviderUrl,
+      String responseIssuer,
+      List<X509Certificate> certificates)
+      throws SamlException {
+
+    this(
+        relyingPartyIdentifier,
+        assertionConsumerServiceUrl,
+        identityProviderUrl,
+        responseIssuer,
+        certificates,
+        false);
   }
 
   /**
@@ -152,7 +185,8 @@ public class SamlClient {
         assertionConsumerServiceUrl,
         identityProviderUrl,
         responseIssuer,
-        Collections.singletonList(certificate));
+        Collections.singletonList(certificate),
+        false);
   }
 
   /**
@@ -167,7 +201,10 @@ public class SamlClient {
 
     request.setVersion(SAMLVersion.VERSION_20);
     request.setIssueInstant(DateTime.now());
-    request.setProtocolBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
+    if (this.useRedirect)
+      request.setProtocolBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect");
+    else
+      request.setProtocolBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
     request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
@@ -342,7 +379,8 @@ public class SamlClient {
         assertionConsumerServiceUrl,
         identityProviderUrl,
         responseIssuer,
-        x509Certificates);
+        x509Certificates,
+        redirect);
   }
 
   private void validateResponse(Response response) throws SamlException {
