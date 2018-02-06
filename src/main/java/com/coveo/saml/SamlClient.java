@@ -281,6 +281,26 @@ public class SamlClient {
   public static SamlClient fromMetadata(
       String relyingPartyIdentifier, String assertionConsumerServiceUrl, Reader metadata)
       throws SamlException {
+    return fromMetadata(relyingPartyIdentifier, assertionConsumerServiceUrl, metadata, false);
+  }
+
+  /**
+   * Constructs an SAML client using XML metadata obtained from the identity provider. <p> When
+   * using Okta as an identity provider, it is possible to pass null to relyingPartyIdentifier and
+   * assertionConsumerServiceUrl; they will be inferred from the metadata provider XML.
+   *
+   * @param relyingPartyIdentifier      the identifier for the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param metadata                    the XML metadata obtained from the identity provider.
+   * @param redirect                    If HTTP-Redirect should be used instead of HTTP-Post
+   * @return The created {@link SamlClient}.
+   * @throws SamlException thrown if any error occur while loading the metadata information.
+   */
+  public static SamlClient fromMetadata(
+      String relyingPartyIdentifier, String assertionConsumerServiceUrl, Reader metadata,
+      Boolean redirect)
+      throws SamlException {
 
     ensureOpenSamlIsInitialized();
 
@@ -288,7 +308,11 @@ public class SamlClient {
     EntityDescriptor entityDescriptor = getEntityDescriptor(metadataProvider);
 
     IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
-    SingleSignOnService postBinding = getPostBinding(idpSsoDescriptor);
+    SingleSignOnService idpBinding = null;
+    if (redirect)
+      idpBinding = getRedirectBinding(idpSsoDescriptor);
+    else
+      idpBinding = getPostBinding(idpSsoDescriptor);
     List<X509Certificate> x509Certificates = getCertificates(idpSsoDescriptor);
     boolean isOkta = entityDescriptor.getEntityID().contains(".okta.com");
 
@@ -307,10 +331,10 @@ public class SamlClient {
       // kinda makes no sense since this is supposed to be a url pointing to a server
       // outside Okta, but it probably just straight ignores this and use the one from
       // it's own config anyway.
-      assertionConsumerServiceUrl = postBinding.getLocation();
+      assertionConsumerServiceUrl = idpBinding.getLocation();
     }
 
-    String identityProviderUrl = postBinding.getLocation();
+    String identityProviderUrl = idpBinding.getLocation();
     String responseIssuer = entityDescriptor.getEntityID();
 
     return new SamlClient(
@@ -472,6 +496,16 @@ public class SamlClient {
         .filter(x -> x.getBinding().equals("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"))
         .findAny()
         .orElseThrow(() -> new SamlException("Cannot find HTTP-POST SSO binding in metadata"));
+  }
+
+  private static SingleSignOnService getRedirectBinding(IDPSSODescriptor idpSsoDescriptor)
+      throws SamlException {
+    return idpSsoDescriptor
+        .getSingleSignOnServices()
+        .stream()
+        .filter(x -> x.getBinding().equals("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"))
+        .findAny()
+        .orElseThrow(() -> new SamlException("Cannot find HTTP-Redirect SSO binding in metadata"));
   }
 
   private static List<X509Certificate> getCertificates(IDPSSODescriptor idpSsoDescriptor)
