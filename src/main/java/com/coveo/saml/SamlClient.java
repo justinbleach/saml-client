@@ -60,12 +60,18 @@ public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
   private static boolean initializedOpenSaml = false;
 
+  public enum SamlIdpBinding {
+    POST,
+    Redirect;
+  }
+
   private String relyingPartyIdentifier;
   private String assertionConsumerServiceUrl;
   private String identityProviderUrl;
   private String responseIssuer;
   private List<Credential> credentials;
   private DateTime now; // used for testing only
+  private SamlIdpBinding samlBinding;
 
   /**
    * Returns the url where SAML requests should be posted.
@@ -95,6 +101,7 @@ public class SamlClient {
    * @param responseIssuer              the expected issuer ID for SAML responses.
    * @param certificates                the list of base-64 encoded certificates to use to validate
    *                                    responses.
+   * @param samlBinding                 what type of SAML binding should the client use.
    * @throws SamlException thrown if any error occur while loading the provider information.
    */
   public SamlClient(
@@ -102,7 +109,8 @@ public class SamlClient {
       String assertionConsumerServiceUrl,
       String identityProviderUrl,
       String responseIssuer,
-      List<X509Certificate> certificates)
+      List<X509Certificate> certificates,
+      SamlIdpBinding samlBinding)
       throws SamlException {
 
     ensureOpenSamlIsInitialized();
@@ -125,6 +133,36 @@ public class SamlClient {
     this.identityProviderUrl = identityProviderUrl;
     this.responseIssuer = responseIssuer;
     credentials = certificates.stream().map(SamlClient::getCredential).collect(Collectors.toList());
+    this.samlBinding = samlBinding;
+  }
+
+  /**
+   * Constructs an SAML client using explicit parameters.
+   *
+   * @param relyingPartyIdentifier      the identifier of the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param identityProviderUrl         the url where the SAML request will be submitted.
+   * @param responseIssuer              the expected issuer ID for SAML responses.
+   * @param certificates                the list of base-64 encoded certificates to use to validate
+   *                                    responses.
+   * @throws SamlException thrown if any error occur while loading the provider information.
+   */
+  public SamlClient(
+      String relyingPartyIdentifier,
+      String assertionConsumerServiceUrl,
+      String identityProviderUrl,
+      String responseIssuer,
+      List<X509Certificate> certificates)
+      throws SamlException {
+
+    this(
+        relyingPartyIdentifier,
+        assertionConsumerServiceUrl,
+        identityProviderUrl,
+        responseIssuer,
+        certificates,
+        SamlIdpBinding.POST);
   }
 
   /**
@@ -152,7 +190,8 @@ public class SamlClient {
         assertionConsumerServiceUrl,
         identityProviderUrl,
         responseIssuer,
-        Collections.singletonList(certificate));
+        Collections.singletonList(certificate),
+        SamlIdpBinding.POST);
   }
 
   /**
@@ -167,7 +206,7 @@ public class SamlClient {
 
     request.setVersion(SAMLVersion.VERSION_20);
     request.setIssueInstant(DateTime.now());
-    request.setProtocolBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST");
+    request.setProtocolBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + this.samlBinding.toString());
     request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
@@ -281,6 +320,26 @@ public class SamlClient {
   public static SamlClient fromMetadata(
       String relyingPartyIdentifier, String assertionConsumerServiceUrl, Reader metadata)
       throws SamlException {
+    return fromMetadata(relyingPartyIdentifier, assertionConsumerServiceUrl, metadata, SamlIdpBinding.POST);
+  }
+
+  /**
+   * Constructs an SAML client using XML metadata obtained from the identity provider. <p> When
+   * using Okta as an identity provider, it is possible to pass null to relyingPartyIdentifier and
+   * assertionConsumerServiceUrl; they will be inferred from the metadata provider XML.
+   *
+   * @param relyingPartyIdentifier      the identifier for the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param metadata                    the XML metadata obtained from the identity provider.
+   * @param samlBinding                 the HTTP method to use for binding to the IdP.
+   * @return The created {@link SamlClient}.
+   * @throws SamlException thrown if any error occur while loading the metadata information.
+   */
+  public static SamlClient fromMetadata(
+      String relyingPartyIdentifier, String assertionConsumerServiceUrl, Reader metadata,
+      SamlIdpBinding samlBinding)
+      throws SamlException {
 
     ensureOpenSamlIsInitialized();
 
@@ -288,7 +347,7 @@ public class SamlClient {
     EntityDescriptor entityDescriptor = getEntityDescriptor(metadataProvider);
 
     IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
-    SingleSignOnService postBinding = getPostBinding(idpSsoDescriptor);
+    SingleSignOnService idpBinding = getIdpBinding(idpSsoDescriptor, samlBinding);
     List<X509Certificate> x509Certificates = getCertificates(idpSsoDescriptor);
     boolean isOkta = entityDescriptor.getEntityID().contains(".okta.com");
 
@@ -307,10 +366,10 @@ public class SamlClient {
       // kinda makes no sense since this is supposed to be a url pointing to a server
       // outside Okta, but it probably just straight ignores this and use the one from
       // it's own config anyway.
-      assertionConsumerServiceUrl = postBinding.getLocation();
+      assertionConsumerServiceUrl = idpBinding.getLocation();
     }
 
-    String identityProviderUrl = postBinding.getLocation();
+    String identityProviderUrl = idpBinding.getLocation();
     String responseIssuer = entityDescriptor.getEntityID();
 
     return new SamlClient(
@@ -318,7 +377,8 @@ public class SamlClient {
         assertionConsumerServiceUrl,
         identityProviderUrl,
         responseIssuer,
-        x509Certificates);
+        x509Certificates,
+        samlBinding);
   }
 
   private void validateResponse(Response response) throws SamlException {
@@ -464,12 +524,12 @@ public class SamlClient {
     return idpssoDescriptor;
   }
 
-  private static SingleSignOnService getPostBinding(IDPSSODescriptor idpSsoDescriptor)
-      throws SamlException {
+  private static SingleSignOnService getIdpBinding(IDPSSODescriptor idpSsoDescriptor,
+      SamlIdpBinding samlBinding) throws SamlException {
     return idpSsoDescriptor
         .getSingleSignOnServices()
         .stream()
-        .filter(x -> x.getBinding().equals("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"))
+        .filter(x -> x.getBinding().equals("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + samlBinding.toString()))
         .findAny()
         .orElseThrow(() -> new SamlException("Cannot find HTTP-POST SSO binding in metadata"));
   }

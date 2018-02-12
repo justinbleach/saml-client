@@ -22,24 +22,24 @@ public class SamlClientTest {
 
   @Test
   public void metadataXMLFromADFSCanBeLoaded() throws Throwable {
-    SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"));
+    SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
   }
 
   @Test
   public void metadataXMLFromOktaCanBeLoaded() throws Throwable {
-    SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("okta.xml"));
+    SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("okta.xml"), SamlClient.SamlIdpBinding.POST);
   }
 
   @Test
   public void relyingPartyIdentifierAndAssertionConsumerServiceUrlCanBeOmittedForOkta()
       throws Throwable {
-    SamlClient.fromMetadata(null, null, getXml("okta.xml"));
+    SamlClient.fromMetadata(null, null, getXml("okta.xml"), SamlClient.SamlIdpBinding.POST);
   }
 
   @Test
   public void getSamlRequestReturnsAnEncodedRequest() throws Throwable {
     SamlClient client =
-        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"));
+        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     String decoded = new String(Base64.decode(client.getSamlRequest()), "UTF-8");
     assertTrue(decoded.contains(">myidentifier<"));
   }
@@ -47,7 +47,7 @@ public class SamlClientTest {
   @Test
   public void decodeAndValidateSamlResponseCanDecodeAnSamlResponse() throws Throwable {
     SamlClient client =
-        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"));
+        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(new DateTime(2016, 3, 21, 17, 0, DateTimeZone.UTC));
     SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE);
     assertEquals("mlaporte@coveo.com", response.getNameID());
@@ -58,16 +58,24 @@ public class SamlClientTest {
     String decoded = new String(Base64.decode(AN_ENCODED_RESPONSE), "UTF-8");
     String tampered = decoded.replace("mlaporte", "evilperson");
     SamlClient client =
-        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"));
+        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.decodeAndValidateSamlResponse(Base64.encodeBytes(tampered.getBytes("UTF-8")));
   }
 
   @Test
   public void decodeAndValidateSamlResponseWorksWithCertsInDifferentOrder() throws Throwable {
     SamlClient client =
-        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs2.xml"));
+        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs2.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(new DateTime(2016, 3, 21, 17, 0, DateTimeZone.UTC));
     SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE);
     assertEquals("mlaporte@coveo.com", response.getNameID());
+  }
+
+  @Test
+  public void decodeAndValidateSamlResponseWithHttpRedirect() throws Throwable {
+    SamlClient client =
+        SamlClient.fromMetadata("myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.Redirect);
+    String decoded = new String(Base64.decode(client.getSamlRequest()), "UTF-8");
+    assertTrue(decoded.contains(">myidentifier<"));
   }
 }
