@@ -206,7 +206,8 @@ public class SamlClient {
 
     request.setVersion(SAMLVersion.VERSION_20);
     request.setIssueInstant(DateTime.now());
-    request.setProtocolBinding("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + this.samlBinding.toString());
+    request.setProtocolBinding(
+        "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + this.samlBinding.toString());
     request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
@@ -320,7 +321,8 @@ public class SamlClient {
   public static SamlClient fromMetadata(
       String relyingPartyIdentifier, String assertionConsumerServiceUrl, Reader metadata)
       throws SamlException {
-    return fromMetadata(relyingPartyIdentifier, assertionConsumerServiceUrl, metadata, SamlIdpBinding.POST);
+    return fromMetadata(
+        relyingPartyIdentifier, assertionConsumerServiceUrl, metadata, SamlIdpBinding.POST);
   }
 
   /**
@@ -337,7 +339,9 @@ public class SamlClient {
    * @throws SamlException thrown if any error occur while loading the metadata information.
    */
   public static SamlClient fromMetadata(
-      String relyingPartyIdentifier, String assertionConsumerServiceUrl, Reader metadata,
+      String relyingPartyIdentifier,
+      String assertionConsumerServiceUrl,
+      Reader metadata,
       SamlIdpBinding samlBinding)
       throws SamlException {
 
@@ -524,12 +528,15 @@ public class SamlClient {
     return idpssoDescriptor;
   }
 
-  private static SingleSignOnService getIdpBinding(IDPSSODescriptor idpSsoDescriptor,
-      SamlIdpBinding samlBinding) throws SamlException {
+  private static SingleSignOnService getIdpBinding(
+      IDPSSODescriptor idpSsoDescriptor, SamlIdpBinding samlBinding) throws SamlException {
     return idpSsoDescriptor
         .getSingleSignOnServices()
         .stream()
-        .filter(x -> x.getBinding().equals("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + samlBinding.toString()))
+        .filter(
+            x
+                -> x.getBinding()
+                    .equals("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + samlBinding.toString()))
         .findAny()
         .orElseThrow(() -> new SamlException("Cannot find HTTP-POST SSO binding in metadata"));
   }
