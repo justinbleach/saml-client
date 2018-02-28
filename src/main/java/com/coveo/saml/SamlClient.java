@@ -28,7 +28,6 @@ import org.opensaml.xml.security.credential.Credential;
 import org.opensaml.xml.security.credential.UsageType;
 import org.opensaml.xml.security.keyinfo.KeyInfoHelper;
 import org.opensaml.xml.security.x509.BasicX509Credential;
-import org.opensaml.xml.security.x509.X509Util;
 import org.opensaml.xml.signature.Signature;
 import org.opensaml.xml.signature.SignatureValidator;
 import org.opensaml.xml.signature.X509Data;
@@ -436,12 +435,19 @@ public class SamlClient {
   }
 
   private void validateSignature(Response response) throws SamlException {
-    // I must admit this is not yet 100% clear to me, but it seems that it's OK if either
-    // the assertion is signed (since we take the stuff from it) OR if the response itself
-    // is signed, since it contains the assertion. I've seen boths possibilities coming out
-    // from ADFS and Okta.
-    if (!validateResponseSignature(response) && !validateAssertionSignature(response)) {
+    Signature responseSignature = response.getSignature();
+    Signature assertionSignature = response.getAssertions().get(0).getSignature();
+
+    if (responseSignature == null && assertionSignature == null) {
       throw new SamlException("No signature is present in either response or assertion");
+    }
+
+    if (responseSignature != null && !validate(responseSignature)) {
+      throw new SamlException("The response signature is invalid");
+    }
+
+    if (assertionSignature != null && !validate(assertionSignature)) {
+      throw new SamlException("The assertion signature is invalid");
     }
   }
 
@@ -463,17 +469,6 @@ public class SamlClient {
                 return false;
               }
             });
-  }
-
-  private boolean validateResponseSignature(Response response) throws SamlException {
-    Signature signature = response.getSignature();
-    return validate(signature);
-  }
-
-  private boolean validateAssertionSignature(Response response) throws SamlException {
-    // We assume that there is only one assertion in the response
-    Assertion assertion = response.getAssertions().get(0);
-    return validate(assertion.getSignature());
   }
 
   private synchronized static void ensureOpenSamlIsInitialized() throws SamlException {
@@ -583,19 +578,6 @@ public class SamlClient {
     }
 
     return null;
-  }
-
-  private static X509Certificate getCertificate(String certificate) throws SamlException {
-    try {
-      Collection<X509Certificate> certificates =
-          X509Util.decodeCertificate(Base64.decode(certificate));
-      return certificates
-          .stream()
-          .findFirst()
-          .orElseThrow(() -> new SamlException("Cannot load certificate"));
-    } catch (CertificateException ex) {
-      throw new SamlException("Cannot load certificate", ex);
-    }
   }
 
   private static Credential getCredential(X509Certificate certificate) {
