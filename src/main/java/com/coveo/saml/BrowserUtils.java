@@ -19,6 +19,7 @@ public class BrowserUtils {
       String url, HttpServletResponse response, Map<String, String> values) throws IOException {
 
     response.setContentType("text/html");
+    @SuppressWarnings("resource")
     Writer writer = response.getWriter();
     writer.write(
         "<html><head></head><body><form id='TheForm' action='"
@@ -41,5 +42,8 @@ public class BrowserUtils {
     writer.write(
         "</form><script type='text/javascript'>document.getElementById('TheForm').submit();</script></body></html>");
     writer.flush();
+
+    response.setHeader("Cache-Control", "no-cache, no-store");
+    response.setHeader("Pragma", "no-cache");
   }
 }
