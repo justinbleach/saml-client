@@ -4,6 +4,7 @@ import com.sun.org.apache.xerces.internal.parsers.DOMParser;
 
 import org.joda.time.DateTime;
 import org.opensaml.DefaultBootstrap;
+import org.opensaml.common.SAMLException;
 import org.opensaml.common.SAMLVersion;
 import org.opensaml.saml2.core.Assertion;
 import org.opensaml.saml2.core.AuthnRequest;
@@ -36,7 +37,9 @@ import org.opensaml.xml.util.XMLHelper;
 import org.opensaml.xml.validation.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
@@ -253,20 +256,22 @@ public class SamlClient {
     logger.trace("Validating SAML response: " + decodedResponse);
 
     Response response;
+    Document document;
     try {
       DOMParser parser = new DOMParser();
       parser.parse(new InputSource(new StringReader(decodedResponse)));
+      document = parser.getDocument();
       response =
           (Response)
               Configuration.getUnmarshallerFactory()
-                  .getUnmarshaller(parser.getDocument().getDocumentElement())
-                  .unmarshall(parser.getDocument().getDocumentElement());
+                  .getUnmarshaller(document.getDocumentElement())
+                  .unmarshall(document.getDocumentElement());
     } catch (IOException | SAXException | UnmarshallingException ex) {
       throw new SamlException("Cannot decode xml encoded response", ex);
     }
 
     validateResponse(response);
-    validateAssertion(response);
+    validateAssertion(response, document);
     validateSignature(response);
 
     Assertion assertion = response.getAssertions().get(0);
@@ -402,7 +407,7 @@ public class SamlClient {
     }
   }
 
-  private void validateAssertion(Response response) throws SamlException {
+  private void validateAssertion(Response response, Document rawXML) throws SamlException {
     if (response.getAssertions().size() != 1) {
       throw new SamlException("The response doesn't contain exactly 1 assertion");
     }
@@ -415,6 +420,21 @@ public class SamlClient {
     if (assertion.getSubject().getNameID() == null) {
       throw new SamlException(
           "The NameID value is missing from the SAML response; this is likely an IDP configuration issue");
+    }
+
+    // Workaround for an exploit in the xmltooling library, could be removed when the lib is patched.
+    // https://www.kb.cert.org/vuls/id/475445
+    NodeList nameIDNodes = rawXML.getElementsByTagName("NameID");
+    if (nameIDNodes.getLength() != 1) {
+      throw new SamlException("Could not find NameID node");
+    }
+    String rawNameID = nameIDNodes.item(0).getTextContent();
+    if (rawNameID == null) {
+      throw new SamlException(
+          "The NameID value is missing from the SAML response; this is likely an IDP configuration issue");
+    }
+    if (!rawNameID.equals(assertion.getSubject().getNameID())) {
+      throw new SamlException("There was an error while parsing the NameID.");
     }
 
     enforceConditions(assertion.getConditions());

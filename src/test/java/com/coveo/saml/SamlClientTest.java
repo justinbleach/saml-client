@@ -98,6 +98,20 @@ public class SamlClientTest {
     SamlClient client =
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
+    client.setDateTimeNow(new DateTime(2016, 3, 21, 17, 0, DateTimeZone.UTC));
+    client.decodeAndValidateSamlResponse(Base64.encodeBytes(tampered.getBytes("UTF-8")));
+  }
+
+  // https://shibboleth.net/community/advisories/secadv_20180227.txt
+  @Test(expected = SamlException.class)
+  public void decodeAndValidateSamlResponseRejectsAResponseTamperedByXMLComments() throws Throwable {
+    String decoded = new String(Base64.decode(AN_ENCODED_RESPONSE), "UTF-8");
+    String tampered = decoded.replace("mlaporte", "mlaporte<!---->");
+
+    SamlClient client =
+        SamlClient.fromMetadata(
+            "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
+    client.setDateTimeNow(new DateTime(2016, 3, 21, 17, 0, DateTimeZone.UTC));
     client.decodeAndValidateSamlResponse(Base64.encodeBytes(tampered.getBytes("UTF-8")));
   }
 
