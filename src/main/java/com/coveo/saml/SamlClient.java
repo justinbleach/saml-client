@@ -254,7 +254,7 @@ public class SamlClient {
 
     Response response;
     try {
-      DOMParser parser = new DOMParser();
+      DOMParser parser = createDOMParser();
       parser.parse(new InputSource(new StringReader(decodedResponse)));
       response =
           (Response)
@@ -482,9 +482,26 @@ public class SamlClient {
     }
   }
 
+  private static DOMParser createDOMParser() throws SamlException {
+    DOMParser parser =
+        new DOMParser() {
+          {
+            try {
+              setFeature(INCLUDE_COMMENTS_FEATURE, false);
+            } catch (Throwable ex) {
+              throw new SamlException(
+                  "Cannot disable comments parsing to mitigate https://www.kb.cert.org/vuls/id/475445",
+                  ex);
+            }
+          }
+        };
+
+    return parser;
+  }
+
   private static MetadataProvider createMetadataProvider(Reader metadata) throws SamlException {
     try {
-      DOMParser parser = new DOMParser();
+      DOMParser parser = createDOMParser();
       parser.parse(new InputSource(metadata));
       DOMMetadataProvider provider =
           new DOMMetadataProvider(parser.getDocument().getDocumentElement());
