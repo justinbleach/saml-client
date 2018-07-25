@@ -54,6 +54,14 @@ This library provide an easy way to generate the SAML request and then supports 
     String authenticatedUser = response.getNameID();
 ```
 
+## Processing a SAML Logout Request
+
+```java
+    RequestValues values = client.getSamlLogoutRequest();
+    // Add values.request as SAMLRequest to the logout request, NOTE only redirect is supported right now
+    // If you have set a signing-private.der and signing-public.pem to the run directory of the app, you also have values.signature available for the Signature query parameter.  SigAlg is forced to: http://www.w3.org/2000/09/xmldsig#rsa-sha256
+```
+
 ## Using the helpers for servlet requests and responses
 
 ```java
