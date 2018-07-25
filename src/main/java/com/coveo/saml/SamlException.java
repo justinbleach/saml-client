@@ -1,7 +1,9 @@
 package com.coveo.saml;
 
 public class SamlException extends Exception {
-  public SamlException(String message) {
+  private static final long serialVersionUID = 1L;
+
+public SamlException(String message) {
     super(message);
   }
 

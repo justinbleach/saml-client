@@ -1,3 +1,10 @@
 *.iml
 .idea
 target
+.classpath
+.project
+.python-version
+.settings
+.vscode
+mvn-repo
+*.swp
