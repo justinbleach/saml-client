@@ -338,10 +338,33 @@ public class SamlClient {
    * @throws SamlException thrown if any error occur while loading the metadata information.
    */
   public static SamlClient fromMetadata(
+          String relyingPartyIdentifier,
+          String assertionConsumerServiceUrl,
+          Reader metadata,
+          SamlIdpBinding samlBinding)
+          throws SamlException {
+    return fromMetadata(relyingPartyIdentifier, assertionConsumerServiceUrl, metadata, samlBinding, null);
+  }
+
+  /**
+   * Constructs an SAML client using XML metadata obtained from the identity provider. <p> When
+   * using Okta as an identity provider, it is possible to pass null to relyingPartyIdentifier and
+   * assertionConsumerServiceUrl; they will be inferred from the metadata provider XML.
+   *
+   * @param relyingPartyIdentifier      the identifier for the relying party.
+   * @param assertionConsumerServiceUrl the url where the identity provider will post back the
+   *                                    SAML response.
+   * @param metadata                    the XML metadata obtained from the identity provider.
+   * @param samlBinding                 the HTTP method to use for binding to the IdP.
+   * @return The created {@link SamlClient}.
+   * @throws SamlException thrown if any error occur while loading the metadata information.
+   */
+  public static SamlClient fromMetadata(
       String relyingPartyIdentifier,
       String assertionConsumerServiceUrl,
       Reader metadata,
-      SamlIdpBinding samlBinding)
+      SamlIdpBinding samlBinding,
+      List<X509Certificate> certificates)
       throws SamlException {
 
     ensureOpenSamlIsInitialized();
@@ -370,6 +393,12 @@ public class SamlClient {
       // outside Okta, but it probably just straight ignores this and use the one from
       // it's own config anyway.
       assertionConsumerServiceUrl = idpBinding.getLocation();
+    }
+
+    if(certificates != null) {
+      // Adding certificates given to this method
+      // because some idp metadata file does not embedded signing certificate
+      x509Certificates.addAll(certificates);
     }
 
     String identityProviderUrl = idpBinding.getLocation();
