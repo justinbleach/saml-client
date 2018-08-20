@@ -338,12 +338,13 @@ public class SamlClient {
    * @throws SamlException thrown if any error occur while loading the metadata information.
    */
   public static SamlClient fromMetadata(
-          String relyingPartyIdentifier,
-          String assertionConsumerServiceUrl,
-          Reader metadata,
-          SamlIdpBinding samlBinding)
-          throws SamlException {
-    return fromMetadata(relyingPartyIdentifier, assertionConsumerServiceUrl, metadata, samlBinding, null);
+      String relyingPartyIdentifier,
+      String assertionConsumerServiceUrl,
+      Reader metadata,
+      SamlIdpBinding samlBinding)
+      throws SamlException {
+    return fromMetadata(
+        relyingPartyIdentifier, assertionConsumerServiceUrl, metadata, samlBinding, null);
   }
 
   /**
@@ -395,7 +396,7 @@ public class SamlClient {
       assertionConsumerServiceUrl = idpBinding.getLocation();
     }
 
-    if(certificates != null) {
+    if (certificates != null) {
       // Adding certificates given to this method
       // because some idp metadata file does not embedded signing certificate
       x509Certificates.addAll(certificates);
