@@ -70,6 +70,7 @@ public class SamlClient {
   private String responseIssuer;
   private List<Credential> credentials;
   private DateTime now; // used for testing only
+  private long notBeforeSkew = 0L;
   private SamlIdpBinding samlBinding;
 
   /**
@@ -88,6 +89,21 @@ public class SamlClient {
    */
   public void setDateTimeNow(DateTime now) {
     this.now = now;
+  }
+
+  /**
+   * Sets by how much the current time can be before the assertion's notBefore.
+   *
+   * Used to mitigate clock differences between the identity provider and relying party.
+   *
+   * @param notBeforeSkew non-negative amount of skew (in milliseconds) to allow between the
+   *                      current time and the assertion's notBefore date. Default: 0
+   */
+  public void setNotBeforeSkew(long notBeforeSkew) {
+    if (notBeforeSkew < 0) {
+      throw new IllegalArgumentException("Skew must be non-negative");
+    }
+    this.notBeforeSkew = notBeforeSkew;
   }
 
   /**
@@ -453,14 +469,18 @@ public class SamlClient {
   private void enforceConditions(Conditions conditions) throws SamlException {
     DateTime now = this.now != null ? this.now : DateTime.now();
 
-    if (now.isBefore(conditions.getNotBefore())) {
+    DateTime notBefore = conditions.getNotBefore();
+    DateTime skewedNotBefore = notBefore.minus(notBeforeSkew);
+    if (now.isBefore(skewedNotBefore)) {
       throw new SamlException(
-          "The assertion cannot be used before " + conditions.getNotBefore().toString());
+          "The assertion cannot be used before " + skewedNotBefore.toString() + " (" + notBefore.toString() +
+              " + " + notBeforeSkew + "ms skew)");
     }
 
-    if (now.isAfter(conditions.getNotOnOrAfter())) {
+    DateTime notOnOrAfter = conditions.getNotOnOrAfter();
+    if (now.isAfter(notOnOrAfter)) {
       throw new SamlException(
-          "The assertion cannot be used after  " + conditions.getNotOnOrAfter().toString());
+          "The assertion cannot be used after  " + notOnOrAfter.toString());
     }
   }
 

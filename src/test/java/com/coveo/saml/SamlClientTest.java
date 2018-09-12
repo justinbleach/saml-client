@@ -183,4 +183,28 @@ public class SamlClientTest {
     // ensure that the identity that ends up being returned is the proper one.
     assertEquals("mlaporte@coveo.com", response.getNameID());
   }
+
+  @Test
+  public void decodeAndValidateSamlResponseWorksWithNowAfterSkewedNotBefore() throws Throwable {
+    SamlClient client =
+            SamlClient.fromMetadata(
+                    "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
+    int skew = 60 * 60 * 1000;
+    client.setDateTimeNow(ASSERTION_DATE.minus(skew));
+    client.setNotBeforeSkew(skew);
+    SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE);
+    assertEquals("mlaporte@coveo.com", response.getNameID());
+  }
+
+
+  @Test(expected = SamlException.class)
+  public void decodeAndValidateSamlResponseRejectsNowBeforeNotBefore() throws Throwable {
+    SamlClient client =
+            SamlClient.fromMetadata(
+                    "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
+    int skew = 60 * 60 * 1000;
+    client.setDateTimeNow(ASSERTION_DATE.minus(skew));
+    SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE);
+    assertEquals("mlaporte@coveo.com", response.getNameID());
+  }
 }
