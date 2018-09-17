@@ -473,8 +473,7 @@ public class SamlClient {
     DateTime skewedNotBefore = notBefore.minus(notBeforeSkew);
     if (now.isBefore(skewedNotBefore)) {
       throw new SamlException(
-          "The assertion cannot be used before " + skewedNotBefore.toString() + " (" + notBefore.toString() +
-              " + " + notBeforeSkew + "ms skew)");
+          "The assertion cannot be used before " + notBefore.toString());
     }
 
     DateTime notOnOrAfter = conditions.getNotOnOrAfter();
