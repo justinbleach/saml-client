@@ -1,17 +1,17 @@
 package com.coveo.saml;
 
-import com.sun.org.apache.xerces.internal.parsers.DOMParser;
+import org.apache.xerces.parsers.DOMParser;
 
 import org.joda.time.DateTime;
 import org.opensaml.DefaultBootstrap;
+import org.opensaml.common.SAMLException;
+import org.opensaml.common.SAMLObject;
 import org.opensaml.common.SAMLVersion;
-import org.opensaml.saml2.core.Assertion;
-import org.opensaml.saml2.core.AuthnRequest;
-import org.opensaml.saml2.core.Conditions;
-import org.opensaml.saml2.core.Issuer;
-import org.opensaml.saml2.core.NameIDPolicy;
-import org.opensaml.saml2.core.Response;
-import org.opensaml.saml2.core.validator.ResponseSchemaValidator;
+import org.opensaml.common.SignableSAMLObject;
+import org.opensaml.saml2.core.*;
+import org.opensaml.saml2.core.impl.StatusCodeBuilder;
+import org.opensaml.saml2.core.impl.StatusMessageBuilder;
+import org.opensaml.saml2.encryption.Decrypter;
 import org.opensaml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml2.metadata.IDPSSODescriptor;
 import org.opensaml.saml2.metadata.KeyDescriptor;
@@ -21,32 +21,40 @@ import org.opensaml.saml2.metadata.provider.MetadataProvider;
 import org.opensaml.saml2.metadata.provider.MetadataProviderException;
 import org.opensaml.xml.Configuration;
 import org.opensaml.xml.XMLObject;
+import org.opensaml.xml.encryption.DecryptionException;
+import org.opensaml.xml.encryption.InlineEncryptedKeyResolver;
 import org.opensaml.xml.io.Marshaller;
+import org.opensaml.xml.io.MarshallerFactory;
 import org.opensaml.xml.io.MarshallingException;
 import org.opensaml.xml.io.UnmarshallingException;
+import org.opensaml.xml.schema.impl.XSAnyImpl;
+import org.opensaml.xml.schema.impl.XSStringImpl;
 import org.opensaml.xml.security.credential.Credential;
 import org.opensaml.xml.security.credential.UsageType;
 import org.opensaml.xml.security.keyinfo.KeyInfoHelper;
+import org.opensaml.xml.security.keyinfo.StaticKeyInfoCredentialResolver;
 import org.opensaml.xml.security.x509.BasicX509Credential;
-import org.opensaml.xml.signature.Signature;
-import org.opensaml.xml.signature.SignatureValidator;
-import org.opensaml.xml.signature.X509Data;
+import org.opensaml.xml.security.x509.X509Credential;
+import org.opensaml.xml.signature.*;
 import org.opensaml.xml.util.Base64;
 import org.opensaml.xml.util.XMLHelper;
-import org.opensaml.xml.validation.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-import java.io.IOException;
-import java.io.Reader;
-import java.io.StringReader;
-import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,6 +65,10 @@ import javax.xml.namespace.QName;
 
 public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
+
+  private static final String HTTP_REQ_SAML_PARAM = "SAMLRequest";
+  private static final String HTTP_RESP_SAML_PARAM = "SAMLResponse";
+
   private static boolean initializedOpenSaml = false;
 
   public enum SamlIdpBinding {
@@ -72,6 +84,7 @@ public class SamlClient {
   private DateTime now; // used for testing only
   private long notBeforeSkew = 0L;
   private SamlIdpBinding samlBinding;
+  private BasicX509Credential spCredential;
 
   /**
    * Returns the url where SAML requests should be posted.
@@ -233,22 +246,16 @@ public class SamlClient {
     nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
     request.setNameIDPolicy(nameIDPolicy);
 
-    StringWriter stringWriter = new StringWriter();
+    StringWriter stringWriter;
     try {
-      Marshaller marshaller = Configuration.getMarshallerFactory().getMarshaller(request);
-      Element dom = marshaller.marshall(request);
-      XMLHelper.writeNode(dom, stringWriter);
-    } catch (MarshallingException ex) {
-      throw new SamlException("Error while marshalling SAML request to XML", ex);
+      stringWriter = marshallXmlObject(request);
+    } catch (MarshallingException e) {
+      throw new SamlException("Error while marshalling SAML request to XML", e);
     }
 
     logger.trace("Issuing SAML request: " + stringWriter.toString());
 
-    try {
-      return Base64.encodeBytes(stringWriter.toString().getBytes("UTF-8"));
-    } catch (UnsupportedEncodingException ex) {
-      throw new SamlException("Error while encoding SAML request", ex);
-    }
+    return Base64.encodeBytes(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
   }
 
   /**
@@ -259,31 +266,17 @@ public class SamlClient {
    * @throws SamlException if the signature is invalid, or if any other error occurs.
    */
   public SamlResponse decodeAndValidateSamlResponse(String encodedResponse) throws SamlException {
-    String decodedResponse;
+    //Decode and parse the response
+    Response response = (Response) parseResponse(encodedResponse);
+
+    // Decode and add the assertion
     try {
-      decodedResponse = new String(Base64.decode(encodedResponse), "UTF-8");
-    } catch (UnsupportedEncodingException ex) {
-      throw new SamlException("Cannot decode base64 encoded response", ex);
+      decodeEncryptedAssertion(response);
+    } catch (DecryptionException e) {
+      throw new SamlException("Cannot decrypt the assertion", e);
     }
-
-    logger.trace("Validating SAML response: " + decodedResponse);
-
-    Response response;
-    try {
-      DOMParser parser = createDOMParser();
-      parser.parse(new InputSource(new StringReader(decodedResponse)));
-      response =
-          (Response)
-              Configuration.getUnmarshallerFactory()
-                  .getUnmarshaller(parser.getDocument().getDocumentElement())
-                  .unmarshall(parser.getDocument().getDocumentElement());
-    } catch (IOException | SAXException | UnmarshallingException ex) {
-      throw new SamlException("Cannot decode xml encoded response", ex);
-    }
-
-    validateResponse(response);
-    validateAssertion(response);
-    validateSignature(response);
+    //Validate  the response (Assertion / Signature / Schema)
+    ValidatorUtils.validate(response, responseIssuer, credentials, this.now, notBeforeSkew);
 
     Assertion assertion = response.getAssertions().get(0);
     return new SamlResponse(assertion);
@@ -317,7 +310,7 @@ public class SamlClient {
    */
   public SamlResponse processPostFromIdentityProvider(HttpServletRequest request)
       throws SamlException {
-    String encodedResponse = request.getParameter("SAMLResponse");
+    String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
     return decodeAndValidateSamlResponse(encodedResponse);
   }
 
@@ -428,96 +421,6 @@ public class SamlClient {
         responseIssuer,
         x509Certificates,
         samlBinding);
-  }
-
-  private void validateResponse(Response response) throws SamlException {
-    try {
-      new ResponseSchemaValidator().validate(response);
-    } catch (ValidationException ex) {
-      throw new SamlException("The response schema validation failed", ex);
-    }
-
-    if (!response.getIssuer().getValue().equals(responseIssuer)) {
-      throw new SamlException("The response issuer didn't match the expected value");
-    }
-
-    String statusCode = response.getStatus().getStatusCode().getValue();
-
-    if (!statusCode.equals("urn:oasis:names:tc:SAML:2.0:status:Success")) {
-      throw new SamlException("Invalid status code: " + statusCode);
-    }
-  }
-
-  private void validateAssertion(Response response) throws SamlException {
-    if (response.getAssertions().size() != 1) {
-      throw new SamlException("The response doesn't contain exactly 1 assertion");
-    }
-
-    Assertion assertion = response.getAssertions().get(0);
-    if (!assertion.getIssuer().getValue().equals(responseIssuer)) {
-      throw new SamlException("The assertion issuer didn't match the expected value");
-    }
-
-    if (assertion.getSubject().getNameID() == null) {
-      throw new SamlException(
-          "The NameID value is missing from the SAML response; this is likely an IDP configuration issue");
-    }
-
-    enforceConditions(assertion.getConditions());
-  }
-
-  private void enforceConditions(Conditions conditions) throws SamlException {
-    DateTime now = this.now != null ? this.now : DateTime.now();
-
-    DateTime notBefore = conditions.getNotBefore();
-    DateTime skewedNotBefore = notBefore.minus(notBeforeSkew);
-    if (now.isBefore(skewedNotBefore)) {
-      throw new SamlException(
-          "The assertion cannot be used before " + notBefore.toString());
-    }
-
-    DateTime notOnOrAfter = conditions.getNotOnOrAfter();
-    if (now.isAfter(notOnOrAfter)) {
-      throw new SamlException(
-          "The assertion cannot be used after  " + notOnOrAfter.toString());
-    }
-  }
-
-  private void validateSignature(Response response) throws SamlException {
-    Signature responseSignature = response.getSignature();
-    Signature assertionSignature = response.getAssertions().get(0).getSignature();
-
-    if (responseSignature == null && assertionSignature == null) {
-      throw new SamlException("No signature is present in either response or assertion");
-    }
-
-    if (responseSignature != null && !validate(responseSignature)) {
-      throw new SamlException("The response signature is invalid");
-    }
-
-    if (assertionSignature != null && !validate(assertionSignature)) {
-      throw new SamlException("The assertion signature is invalid");
-    }
-  }
-
-  private boolean validate(Signature signature) {
-    if (signature == null) {
-      return false;
-    }
-
-    // It's fine if any of the credentials match the signature
-    return credentials
-        .stream()
-        .anyMatch(
-            c -> {
-              try {
-                SignatureValidator signatureValidator = new SignatureValidator(c);
-                signatureValidator.validate(signature);
-                return true;
-              } catch (ValidationException ex) {
-                return false;
-              }
-            });
   }
 
   private synchronized static void ensureOpenSamlIsInitialized() throws SamlException {
@@ -654,7 +557,381 @@ public class SamlClient {
     return credential;
   }
 
+  /**
+   * Decodes and validates an SAML response returned by an identity provider.
+   *
+   * @param encodedResponse the encoded response returned by the identity provider.
+   * @return An {@link SamlResponse} object containing information decoded from the SAML response.
+   * @throws SamlException if the signature is invalid, or if any other error occurs.
+   */
+  public SamlLogoutResponse decodeAndValidateSamlLogoutResponse(String encodedResponse)
+      throws SamlException {
+    LogoutResponse logoutResponse = (LogoutResponse) parseResponse(encodedResponse);
+
+    ValidatorUtils.validate(logoutResponse, responseIssuer, credentials);
+
+    return new SamlLogoutResponse(logoutResponse.getStatus());
+  }
+
+  /**
+   * Decodes and validates an SAML logout request send by an identity provider.
+   *
+   * @param encodedRequest the encoded request send by the identity provider.
+   * @throws SamlException if the signature is invalid, or if any other error occurs.
+   */
+  public void decodeAndValidateSamlLogoutRequest(String encodedRequest, String nameID)
+      throws SamlException {
+    LogoutRequest logoutRequest = (LogoutRequest) parseResponse(encodedRequest);
+
+    ValidatorUtils.validate(logoutRequest, responseIssuer, credentials, nameID);
+  }
+  /**
+   * Set service provider keys.
+   *
+   * @param publicKey  the public key
+   * @param privateKey the private key
+   * @throws SamlException the saml exception
+   */
+  public void setSPKeys(String publicKey, String privateKey) throws SamlException {
+    if (publicKey == null || privateKey == null) {
+      return;
+    }
+    PrivateKey pk = loadPrivateKey(privateKey);
+    X509Certificate cert = this.loadCertificate(publicKey);
+    spCredential = new BasicX509Credential();
+    spCredential.setEntityCertificate(cert);
+    spCredential.setPrivateKey(pk);
+  }
+
+  /**
+   * Gets attributes from the IDP Response
+   *
+   * @param response the response
+   * @return the attributes
+   */
+  public static Map<String, String> getAttributes(SamlResponse response) {
+    HashMap<String, String> map = new HashMap<>();
+    if (response == null) {
+      return map;
+    }
+    List<AttributeStatement> attributeStatements = response.getAssertion().getAttributeStatements();
+    if (attributeStatements == null) {
+      return map;
+    }
+
+    for (AttributeStatement statement : attributeStatements) {
+      for (Attribute attribute : statement.getAttributes()) {
+        XMLObject xmlObject = attribute.getAttributeValues().get(0);
+        if (xmlObject instanceof XSStringImpl) {
+          map.put(attribute.getName(), ((XSStringImpl) xmlObject).getValue());
+        } else {
+          map.put(attribute.getName(), ((XSAnyImpl) xmlObject).getTextContent());
+        }
+      }
+    }
+    return map;
+  }
+  /**
+   * Gets the encoded logout request.
+   *
+   * @param nameId the name id
+   * @return the logout request
+   * @throws SamlException the saml exception
+   */
+  public String getLogoutRequest(String nameId) throws SamlException {
+    LogoutRequest request = (LogoutRequest) buildSamlObject(LogoutRequest.DEFAULT_ELEMENT_NAME);
+    request.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
+
+    request.setVersion(SAMLVersion.VERSION_20);
+    request.setIssueInstant(DateTime.now());
+
+    Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
+    issuer.setValue(relyingPartyIdentifier);
+    request.setIssuer(issuer);
+
+    NameID nid = (NameID) buildSamlObject(NameID.DEFAULT_ELEMENT_NAME);
+    nid.setValue(nameId);
+    request.setNameID(nid);
+    //Add the signature
+    signSAMLObject(request);
+
+    //Convert the xml object to string
+    StringWriter stringWriter;
+    try {
+      stringWriter = marshallXmlObject(request);
+    } catch (MarshallingException e) {
+      throw new SamlException("Error while marshalling SAML request to XML", e);
+    }
+
+    logger.trace("Issuing SAML Logout request: " + stringWriter.toString());
+
+    return Base64.encodeBytes(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
+  }
+  /**
+   * Gets saml logout response.
+   *
+   * @param status  the status code @See StatusCode.java
+   * @return saml logout response
+   * @throws SamlException the saml exception
+   */
+  public String getSamlLogoutResponse(final String status) throws SamlException {
+    return getSamlLogoutResponse(status, null);
+  }
+  /**
+   * Gets saml logout response.
+   *
+   * @param status  the status code @See StatusCode.java
+   * @param statMsg the status message
+   * @return saml logout response
+   * @throws SamlException the saml exception
+   */
+  public String getSamlLogoutResponse(final String status, final String statMsg)
+      throws SamlException {
+    LogoutResponse response = (LogoutResponse) buildSamlObject(LogoutResponse.DEFAULT_ELEMENT_NAME);
+    response.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
+
+    response.setVersion(SAMLVersion.VERSION_20);
+    response.setIssueInstant(DateTime.now());
+
+    Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
+    issuer.setValue(relyingPartyIdentifier);
+    response.setIssuer(issuer);
+
+    //Status
+    Status stat = (Status) buildSamlObject(Status.DEFAULT_ELEMENT_NAME);
+    StatusCode statCode = new StatusCodeBuilder().buildObject();
+    statCode.setValue(status);
+    stat.setStatusCode(statCode);
+    if (statMsg != null) {
+      StatusMessage statMessage = new StatusMessageBuilder().buildObject();
+      statMessage.setMessage(statMsg);
+      stat.setStatusMessage(statMessage);
+    }
+    response.setStatus(stat);
+    //Add a signature into the response
+    signSAMLObject(response);
+
+    StringWriter stringWriter;
+    try {
+      stringWriter = marshallXmlObject(response);
+    } catch (MarshallingException ex) {
+      throw new SamlException("Error while marshalling SAML request to XML", ex);
+    }
+
+    logger.trace("Issuing SAML Logout request: " + stringWriter.toString());
+
+    return Base64.encodeBytes(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
+  }
+  /**
+   * Processes a POST containing the SAML logout request.
+   *
+   * @param request the {@link HttpServletRequest}.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public void processLogoutRequestPostFromIdentityProvider(
+      HttpServletRequest request, String nameID) throws SamlException {
+    String encodedResponse = request.getParameter(HTTP_REQ_SAML_PARAM);
+    decodeAndValidateSamlLogoutRequest(encodedResponse, nameID);
+  }
+  /**
+   * Processes a POST containing the SAML response.
+   *
+   * @param request the {@link HttpServletRequest}.
+   * @return An {@link SamlResponse} object containing information decoded from the SAML response.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public SamlLogoutResponse processPostLogoutResponseFromIdentityProvider(
+      HttpServletRequest request) throws SamlException {
+    String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
+    return decodeAndValidateSamlLogoutResponse(encodedResponse);
+  }
+  /**
+   * Redirects an {@link HttpServletResponse} to the configured identity provider.
+   *
+   * @param response   The {@link HttpServletResponse}.
+   * @param relayState Optional relay state that will be passed along.
+   * @throws IOException   thrown if an IO error occurs.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public void redirectToIdentityProvider(
+      HttpServletResponse response, String relayState, String nameId)
+      throws IOException, SamlException {
+    Map<String, String> values = new HashMap<>();
+    values.put("SAMLRequest", getLogoutRequest(nameId));
+    if (relayState != null) {
+      values.put("RelayState", relayState);
+    }
+
+    BrowserUtils.postUsingBrowser(identityProviderUrl, response, values);
+  }
+  /**
+   * Redirect to identity provider logout.
+   *
+   * @param response   the response
+   * @param statusCode the status code
+   * @param statMsg    the stat msg
+   * @throws IOException   the io exception
+   * @throws SamlException the saml exception
+   */
+  public void redirectToIdentityProviderLogout(
+      HttpServletResponse response, String statusCode, String statMsg)
+      throws IOException, SamlException {
+    Map<String, String> values = new HashMap<>();
+    values.put(HTTP_RESP_SAML_PARAM, getSamlLogoutResponse(statusCode, statMsg));
+    BrowserUtils.postUsingBrowser(identityProviderUrl, response, values);
+  }
+
   private static XMLObject buildSamlObject(QName qname) {
     return Configuration.getBuilderFactory().getBuilder(qname).buildObject(qname);
+  }
+
+  private PrivateKey createPrivateKey(byte[] file)
+      throws InvalidKeySpecException, NoSuchAlgorithmException {
+    PKCS8EncodedKeySpec kspec = new PKCS8EncodedKeySpec(file);
+    KeyFactory kf = KeyFactory.getInstance("RSA");
+    return kf.generatePrivate(kspec);
+  }
+
+  private X509Certificate createCertificate(FileInputStream fis) throws SamlException {
+    try {
+      BufferedInputStream bis = new BufferedInputStream(fis);
+
+      CertificateFactory cf = CertificateFactory.getInstance("X.509");
+
+      if (bis.available() > 0) {
+        X509Certificate cert = (X509Certificate) cf.generateCertificate(bis);
+        System.out.println(cert.toString());
+        bis.close();
+        return cert;
+      }
+
+      bis.close();
+      throw new SamlException("empty public key");
+    } catch (Exception e) {
+      throw new SamlException("Couldn't load public key", e);
+    }
+  }
+  /**
+   * Decode the encrypted assertion.
+   *
+   * @param response the response
+   * @throws DecryptionException the decryption exception
+   */
+  private void decodeEncryptedAssertion(Response response) throws DecryptionException {
+    if (response.getEncryptedAssertions().size() == 0) {
+      return;
+    }
+    for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {
+      // Create a decrypter.
+      Decrypter decrypter =
+          new Decrypter(
+              null,
+              new StaticKeyInfoCredentialResolver(spCredential),
+              new InlineEncryptedKeyResolver());
+      // Decrypt the assertion.
+      Assertion decryptedAssertion = decrypter.decrypt(encryptedAssertion);
+      // Add the assertion
+      response.getAssertions().add(decryptedAssertion);
+    }
+  }
+
+  private X509Certificate loadCertificate(String filename) throws SamlException {
+    try {
+      FileInputStream fis = new FileInputStream(filename);
+      return createCertificate(fis);
+    } catch (FileNotFoundException e) {
+      throw new SamlException("Couldn't load public key", e);
+    }
+  }
+
+  private PrivateKey loadPrivateKey(String filename) throws SamlException {
+    try {
+      RandomAccessFile raf = new RandomAccessFile(filename, "r");
+      byte[] buf = new byte[(int) raf.length()];
+      raf.readFully(buf);
+      raf.close();
+      return createPrivateKey(buf);
+    } catch (Exception e) {
+      throw new SamlException("Couldn't load private key", e);
+    }
+  }
+
+  private StringWriter marshallXmlObject(XMLObject object) throws MarshallingException {
+    StringWriter stringWriter = new StringWriter();
+    Marshaller marshaller = Configuration.getMarshallerFactory().getMarshaller(object);
+    Element dom = marshaller.marshall(object);
+    XMLHelper.writeNode(dom, stringWriter);
+
+    return stringWriter;
+  }
+
+  private SAMLObject parseResponse(String encodedResponse) throws SamlException {
+    String decodedResponse;
+    decodedResponse = new String(Base64.decode(encodedResponse), StandardCharsets.UTF_8);
+    logger.trace("Validating SAML response: " + decodedResponse);
+    try {
+      DOMParser parser = createDOMParser();
+      parser.parse(new InputSource(new StringReader(decodedResponse)));
+      return (SAMLObject)
+          Configuration.getUnmarshallerFactory()
+              .getUnmarshaller(parser.getDocument().getDocumentElement())
+              .unmarshall(parser.getDocument().getDocumentElement());
+    } catch (IOException | SAXException | UnmarshallingException ex) {
+      throw new SamlException("Cannot decode xml encoded response", ex);
+    }
+  }
+
+  private Signature setSignatureRaw(String signatureAlgorithm, X509Credential cred)
+      throws SAMLException {
+    Signature signature = (Signature) buildSamlObject(Signature.DEFAULT_ELEMENT_NAME);
+    signature.setSigningCredential(cred);
+    signature.setSignatureAlgorithm(signatureAlgorithm);
+    signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
+
+    try {
+      KeyInfo keyInfo = (KeyInfo) buildSamlObject(KeyInfo.DEFAULT_ELEMENT_NAME);
+      X509Data data = (X509Data) buildSamlObject(X509Data.DEFAULT_ELEMENT_NAME);
+      org.opensaml.xml.signature.X509Certificate cert =
+          (org.opensaml.xml.signature.X509Certificate)
+              buildSamlObject(org.opensaml.xml.signature.X509Certificate.DEFAULT_ELEMENT_NAME);
+      String value =
+          org.apache.xml.security.utils.Base64.encode(cred.getEntityCertificate().getEncoded());
+      cert.setValue(value);
+      data.getX509Certificates().add(cert);
+      keyInfo.getX509Datas().add(data);
+      signature.setKeyInfo(keyInfo);
+      return signature;
+
+    } catch (CertificateEncodingException e) {
+      throw new SAMLException("Error getting certificate", e);
+    }
+  }
+
+  private void signSAMLObject(SignableSAMLObject samlObject) throws SamlException {
+
+    try {
+
+      if (spCredential != null) {
+        Signature signature =
+            this.setSignatureRaw(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256, spCredential);
+
+        samlObject.setSignature(signature);
+
+        List<Signature> signatureList = new ArrayList<>();
+        signatureList.add(signature);
+
+        // Marshall and Sign
+        MarshallerFactory marshallerFactory = org.opensaml.xml.Configuration.getMarshallerFactory();
+        Marshaller marshaller = marshallerFactory.getMarshaller(samlObject);
+
+        marshaller.marshall(samlObject);
+
+        org.apache.xml.security.Init.init();
+        Signer.signObjects(signatureList);
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new SamlException("Failed to sign request", e);
+    }
   }
 }
