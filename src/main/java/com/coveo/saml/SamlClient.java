@@ -3,37 +3,32 @@ package com.coveo.saml;
 import com.sun.org.apache.xerces.internal.parsers.DOMParser;
 
 import org.joda.time.DateTime;
-import org.opensaml.DefaultBootstrap;
-import org.opensaml.common.SAMLVersion;
-import org.opensaml.saml2.core.Assertion;
-import org.opensaml.saml2.core.AuthnRequest;
-import org.opensaml.saml2.core.Conditions;
-import org.opensaml.saml2.core.Issuer;
-import org.opensaml.saml2.core.NameIDPolicy;
-import org.opensaml.saml2.core.Response;
-import org.opensaml.saml2.core.validator.ResponseSchemaValidator;
-import org.opensaml.saml2.metadata.EntityDescriptor;
-import org.opensaml.saml2.metadata.IDPSSODescriptor;
-import org.opensaml.saml2.metadata.KeyDescriptor;
-import org.opensaml.saml2.metadata.SingleSignOnService;
-import org.opensaml.saml2.metadata.provider.DOMMetadataProvider;
-import org.opensaml.saml2.metadata.provider.MetadataProvider;
-import org.opensaml.saml2.metadata.provider.MetadataProviderException;
-import org.opensaml.xml.Configuration;
-import org.opensaml.xml.XMLObject;
-import org.opensaml.xml.io.Marshaller;
-import org.opensaml.xml.io.MarshallingException;
-import org.opensaml.xml.io.UnmarshallingException;
-import org.opensaml.xml.security.credential.Credential;
-import org.opensaml.xml.security.credential.UsageType;
-import org.opensaml.xml.security.keyinfo.KeyInfoHelper;
-import org.opensaml.xml.security.x509.BasicX509Credential;
-import org.opensaml.xml.signature.Signature;
-import org.opensaml.xml.signature.SignatureValidator;
-import org.opensaml.xml.signature.X509Data;
-import org.opensaml.xml.util.Base64;
-import org.opensaml.xml.util.XMLHelper;
-import org.opensaml.xml.validation.ValidationException;
+import org.opensaml.core.config.InitializationService;
+import org.opensaml.core.xml.XMLObject;
+import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
+import org.opensaml.core.xml.io.Marshaller;
+import org.opensaml.core.xml.io.MarshallingException;
+import org.opensaml.core.xml.io.UnmarshallingException;
+import org.opensaml.saml.common.SAMLVersion;
+import org.opensaml.saml.metadata.resolver.impl.DOMMetadataResolver;
+import org.opensaml.saml.saml2.core.Assertion;
+import org.opensaml.saml.saml2.core.AuthnRequest;
+import org.opensaml.saml.saml2.core.Conditions;
+import org.opensaml.saml.saml2.core.Issuer;
+import org.opensaml.saml.saml2.core.NameIDPolicy;
+import org.opensaml.saml.saml2.core.Response;
+import org.opensaml.saml.saml2.metadata.EntityDescriptor;
+import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
+import org.opensaml.saml.saml2.metadata.KeyDescriptor;
+import org.opensaml.saml.saml2.metadata.SingleSignOnService;
+import org.opensaml.security.credential.Credential;
+import org.opensaml.security.credential.UsageType;
+import org.opensaml.security.x509.BasicX509Credential;
+import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
+import org.opensaml.xmlsec.signature.Signature;
+import org.opensaml.xmlsec.signature.X509Data;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.SignatureValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -47,13 +42,22 @@ import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.bind.ValidationException;
 import javax.xml.namespace.QName;
+
+import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 
 public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
@@ -235,7 +239,7 @@ public class SamlClient {
 
     StringWriter stringWriter = new StringWriter();
     try {
-      Marshaller marshaller = Configuration.getMarshallerFactory().getMarshaller(request);
+      Marshaller marshaller = XMLObjectProviderRegistrySupport.getMarshallerFactory().getMarshaller(request);
       Element dom = marshaller.marshall(request);
       XMLHelper.writeNode(dom, stringWriter);
     } catch (MarshallingException ex) {
@@ -245,7 +249,7 @@ public class SamlClient {
     logger.trace("Issuing SAML request: " + stringWriter.toString());
 
     try {
-      return Base64.encodeBytes(stringWriter.toString().getBytes("UTF-8"));
+      return Base64.getEncoder().encodeToString(stringWriter.toString().getBytes("UTF-8"));
     } catch (UnsupportedEncodingException ex) {
       throw new SamlException("Error while encoding SAML request", ex);
     }
@@ -261,7 +265,7 @@ public class SamlClient {
   public SamlResponse decodeAndValidateSamlResponse(String encodedResponse) throws SamlException {
     String decodedResponse;
     try {
-      decodedResponse = new String(Base64.decode(encodedResponse), "UTF-8");
+      decodedResponse = new String(Base64.getDecoder().decode(encodedResponse), "UTF-8");
     } catch (UnsupportedEncodingException ex) {
       throw new SamlException("Cannot decode base64 encoded response", ex);
     }
@@ -274,7 +278,7 @@ public class SamlClient {
       parser.parse(new InputSource(new StringReader(decodedResponse)));
       response =
           (Response)
-              Configuration.getUnmarshallerFactory()
+              XMLObjectProviderRegistrySupport.getUnmarshallerFactory()
                   .getUnmarshaller(parser.getDocument().getDocumentElement())
                   .unmarshall(parser.getDocument().getDocumentElement());
     } catch (IOException | SAXException | UnmarshallingException ex) {
@@ -386,8 +390,8 @@ public class SamlClient {
 
     ensureOpenSamlIsInitialized();
 
-    MetadataProvider metadataProvider = createMetadataProvider(metadata);
-    EntityDescriptor entityDescriptor = getEntityDescriptor(metadataProvider);
+    DOMMetadataResolver metadataResolver = createMetadataResolver(metadata);
+    EntityDescriptor entityDescriptor = getEntityDescriptor(metadataResolver);
 
     IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
     SingleSignOnService idpBinding = getIdpBinding(idpSsoDescriptor, samlBinding);
@@ -509,19 +513,18 @@ public class SamlClient {
         .anyMatch(
             c -> {
               try {
-                SignatureValidator signatureValidator = new SignatureValidator(c);
-                signatureValidator.validate(signature);
+                SignatureValidator.validate(signature, c);
                 return true;
-              } catch (ValidationException ex) {
+              } catch (SignatureException ex) {
                 return false;
               }
             });
   }
 
-  private synchronized static void ensureOpenSamlIsInitialized() throws SamlException {
+  public synchronized static void ensureOpenSamlIsInitialized() throws SamlException {
     if (!initializedOpenSaml) {
       try {
-        DefaultBootstrap.bootstrap();
+        InitializationService.initialize();
         initializedOpenSaml = true;
       } catch (Throwable ex) {
         throw new SamlException("Error while initializing the Open SAML library", ex);
@@ -546,34 +549,28 @@ public class SamlClient {
     return parser;
   }
 
-  private static MetadataProvider createMetadataProvider(Reader metadata) throws SamlException {
+  private static DOMMetadataResolver createMetadataResolver(Reader metadata) throws SamlException {
     try {
       DOMParser parser = createDOMParser();
       parser.parse(new InputSource(metadata));
-      DOMMetadataProvider provider =
-          new DOMMetadataProvider(parser.getDocument().getDocumentElement());
-      provider.initialize();
-      return provider;
-    } catch (IOException | SAXException | MetadataProviderException ex) {
+      DOMMetadataResolver resolver =
+          new DOMMetadataResolver(parser.getDocument().getDocumentElement());
+      resolver.setId("componentId"); // The resolver needs an ID for the initialization to go through.
+      resolver.initialize();
+      return resolver;
+    } catch (IOException | SAXException | ComponentInitializationException ex) {
       throw new SamlException("Cannot load identity provider metadata", ex);
     }
   }
 
-  private static EntityDescriptor getEntityDescriptor(MetadataProvider metadataProvider)
+  private static EntityDescriptor getEntityDescriptor(DOMMetadataResolver metadata)
       throws SamlException {
-    EntityDescriptor descriptor;
-
-    try {
-      descriptor = (EntityDescriptor) metadataProvider.getMetadata();
-    } catch (MetadataProviderException ex) {
-      throw new SamlException("Cannot retrieve the entity descriptor", ex);
+    List<EntityDescriptor> entityDescriptors = new ArrayList<>();
+    metadata.forEach(entityDescriptors::add);
+    if (entityDescriptors.size() != 1) {
+      throw new SamlException("Bad entity descriptor count: " + entityDescriptors.size());
     }
-
-    if (descriptor == null) {
-      throw new SamlException("Cannot retrieve the entity descriptor");
-    }
-
-    return descriptor;
+    return entityDescriptors.get(0);
   }
 
   private static IDPSSODescriptor getIDPSSODescriptor(EntityDescriptor entityDescriptor)
@@ -632,10 +629,10 @@ public class SamlClient {
 
   private static X509Certificate getFirstCertificate(X509Data data) {
     try {
-      org.opensaml.xml.signature.X509Certificate cert =
+      org.opensaml.xmlsec.signature.X509Certificate cert =
           data.getX509Certificates().stream().findFirst().orElse(null);
       if (cert != null) {
-        return KeyInfoHelper.getCertificate(cert);
+        return KeyInfoSupport.getCertificate(cert);
       }
     } catch (CertificateException e) {
       logger.error("Exception in getFirstCertificate", e);
@@ -645,14 +642,12 @@ public class SamlClient {
   }
 
   private static Credential getCredential(X509Certificate certificate) {
-    BasicX509Credential credential = new BasicX509Credential();
-    credential.setEntityCertificate(certificate);
-    credential.setPublicKey(certificate.getPublicKey());
+    BasicX509Credential credential = new BasicX509Credential(certificate);
     credential.setCRLs(Collections.emptyList());
     return credential;
   }
 
   private static XMLObject buildSamlObject(QName qname) {
-    return Configuration.getBuilderFactory().getBuilder(qname).buildObject(qname);
+    return XMLObjectProviderRegistrySupport.getBuilderFactory().getBuilder(qname).buildObject(qname);
   }
 }
