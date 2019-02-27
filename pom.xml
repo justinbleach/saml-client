@@ -62,6 +62,13 @@
       <artifactId>opensaml</artifactId>
       <version>2.6.4</version>
     </dependency>
+    <!-- normally transitive via opensaml, bumped here
+         to address vulnerabilities -->
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk15on</artifactId>
+      <version>1.61</version>
+    </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
