@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" ID="KZQ51hv.F4GbTQtJnn9OBtbWHmB" cacheDuration="PT1439M" entityID="evaluation">
+   <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+      <ds:SignedInfo>
+         <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
+         <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256" />
+         <ds:Reference URI="#KZQ51hv.F4GbTQtJnn9OBtbWHmB">
+            <ds:Transforms>
+               <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" />
+               <ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" />
+            </ds:Transforms>
+            <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256" />
+            <ds:DigestValue>lIaSJ9XPEnfGgkIHBdn5c0LHL7Rascc+dygu11bVdTE=</ds:DigestValue>
+         </ds:Reference>
+      </ds:SignedInfo>
+      <ds:SignatureValue>FylX4iXBB38TKqN5iOVeE5AM83NfV9Tx/WWuRudy2n91jEFi+7mj2D+4vT38Eb0y9LQNhn7aQtmu9IPaUlmCKV3/PzZuTHnUCUDGMe8HXQHOaiB6K6ON178iPWd+UU7zjY0UT7RvijMFvDceuuhd95AgLP1PpsNnnRZ65bOjyWGWDPyF5se4M7Yw7mcIjOwVL5wZdMAmvonA6vcnNyiS45DrGzhjNUijnlQCI8iW/y1lMbWw+o1JjGJaSxmg4TlNINwNadF7m0g5lTIJtwmUJ51IGOE9Bq5QQdwPJvtAXGiqRK+xSPciemIms5sHi4GxC+4f3uos/g4t2rcCCQ1Ptg==</ds:SignatureValue>
+   </ds:Signature>
+   <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" WantAuthnRequestsSigned="false">
+      <md:KeyDescriptor use="signing">
+         <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+            <ds:X509Data>
+               <ds:X509Certificate>MIIC3jCCAcagAwIBAgIGAWm6hCWjMA0GCSqGSIb3DQEBCwUAMDAxCzAJBgNVBAYTAlVTMRIwEAYDVQQKEwl3aW5nc3dlcHQxDTALBgNVBAMTBGNtdHMwHhcNMTkwMzI2MTUwMDE2WhcNMjAwMzI1MTUwMDE2WjAwMQswCQYDVQQGEwJVUzESMBAGA1UEChMJd2luZ3N3ZXB0MQ0wCwYDVQQDEwRjbXRzMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAglKI99UE3Ifn0h+Ft5jOg6B1318RkrJ7jWerJ2rO79zaOeoWfydhUuUbfjbRlRS4rFsdUKoLZT5+zgYiQ3S0kCnU3le1Riw5muN9UIMbZKeS5wUSMpS0W3rlmRN5XpnDw1YZMZXnAwGNWT97cAPBPAiQ9Mik2IZYaEJutGOl31to4a1RQLW3CnPR23acalk/2TbLi0FMBKmBVXaJVfQp3HU/wXNaSgksBpZeEHmj7qXh3gxBQB8fs5m4n15jA2K0HN/v8fUT49qLbp9dpzxkTDbvCeLauJfeY1EquScirY29AgvU+yRbAKZCcqCxaXq4SfL6zsUtGVEvHwOk67YrFQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQB8wa2aAkIj+4LReK83NjeBMIRIrFaina6Ix3KvBWscsbqGCOPEypZsakV9CS5NqMmxcM3r5GH2R4grEPV4IsZy+yxKcRPBnrv1PltB9QlzU1W/cGwPFwFX0/eDT3ruAaz4tRv4bOszck0pzf3giFvhYhkQN/NPFSH+k+3AE1akHMFiwr0s47iieuTR5d4B73lLVqvDE9TJNDyE6bXvXvwUP+VP7lTQEXG1mf6h+bne1niLcGuEutQF75CtP19lSC2HPXEsWse4dQKoPy7vvp7pGaP3PViz1cAcib1E554OC3OOVo1S4UNKB+QZwJ2XShs8kqRyWJXgQMr4mIfFT0Tt</ds:X509Certificate>
+            </ds:X509Data>
+         </ds:KeyInfo>
+      </md:KeyDescriptor>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:entity</md:NameIDFormat>
+   </md:IDPSSODescriptor>
+   <md:ContactPerson contactType="administrative" />
+</md:EntityDescriptor>

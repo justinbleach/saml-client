@@ -389,8 +389,12 @@ public class SamlClient {
     MetadataProvider metadataProvider = createMetadataProvider(metadata);
     EntityDescriptor entityDescriptor = getEntityDescriptor(metadataProvider);
 
-    IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
-    SingleSignOnService idpBinding = getIdpBinding(idpSsoDescriptor, samlBinding);
+    IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);    
+    SingleSignOnService idpBinding = null;
+    if(idpSsoDescriptor.getSingleSignOnServices()!=null && !idpSsoDescriptor.getSingleSignOnServices().isEmpty()) {
+    	idpBinding = getIdpBinding(idpSsoDescriptor, samlBinding);
+    }
+    
     List<X509Certificate> x509Certificates = getCertificates(idpSsoDescriptor);
     boolean isOkta = entityDescriptor.getEntityID().contains(".okta.com");
 
@@ -404,7 +408,7 @@ public class SamlClient {
       }
     }
 
-    if (assertionConsumerServiceUrl == null && isOkta) {
+    if (idpBinding!=null && assertionConsumerServiceUrl == null && isOkta) {
       // Again, Okta's own toolkit uses this value for the assertion consumer url, which
       // kinda makes no sense since this is supposed to be a url pointing to a server
       // outside Okta, but it probably just straight ignores this and use the one from
@@ -418,7 +422,12 @@ public class SamlClient {
       x509Certificates.addAll(certificates);
     }
 
-    String identityProviderUrl = idpBinding.getLocation();
+    String identityProviderUrl;
+    if(idpBinding!=null) {
+    	identityProviderUrl = idpBinding.getLocation();
+    }else {
+    	identityProviderUrl = assertionConsumerServiceUrl;
+    }
     String responseIssuer = entityDescriptor.getEntityID();
 
     return new SamlClient(
