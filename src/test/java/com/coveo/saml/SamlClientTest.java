@@ -123,7 +123,8 @@ public class SamlClientTest {
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(ASSERTION_DATE);
-    client.decodeAndValidateSamlResponse(Base64.getEncoder().encodeToString(tampered.getBytes("UTF-8")));
+    client.decodeAndValidateSamlResponse(
+        Base64.getEncoder().encodeToString(tampered.getBytes("UTF-8")));
   }
 
   @Test
@@ -177,7 +178,8 @@ public class SamlClientTest {
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(ASSERTION_DATE);
     SamlResponse response =
-        client.decodeAndValidateSamlResponse(Base64.getEncoder().encodeToString(tampered.getBytes("UTF-8")));
+        client.decodeAndValidateSamlResponse(
+            Base64.getEncoder().encodeToString(tampered.getBytes("UTF-8")));
 
     // Since comments are ignored from the signature validation, the decoding will work. Here we
     // ensure that the identity that ends up being returned is the proper one.

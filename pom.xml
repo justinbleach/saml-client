@@ -44,13 +44,20 @@
     </repository>
   </distributionManagement>
 
+  <repositories>
+    <repository>
+      <id>shibboleth</id>
+      <url>https://build.shibboleth.net/nexus/content/repositories/releases/</url>
+    </repository>
+  </repositories>
+
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
 
-    <opensaml.version>3.4.1</opensaml.version>
+    <opensaml.version>3.4.3</opensaml.version>
   </properties>
 
   <dependencies>

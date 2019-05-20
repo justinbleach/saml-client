@@ -239,7 +239,8 @@ public class SamlClient {
 
     StringWriter stringWriter = new StringWriter();
     try {
-      Marshaller marshaller = XMLObjectProviderRegistrySupport.getMarshallerFactory().getMarshaller(request);
+      Marshaller marshaller =
+          XMLObjectProviderRegistrySupport.getMarshallerFactory().getMarshaller(request);
       Element dom = marshaller.marshall(request);
       XMLHelper.writeNode(dom, stringWriter);
     } catch (MarshallingException ex) {
@@ -555,7 +556,8 @@ public class SamlClient {
       parser.parse(new InputSource(metadata));
       DOMMetadataResolver resolver =
           new DOMMetadataResolver(parser.getDocument().getDocumentElement());
-      resolver.setId("componentId"); // The resolver needs an ID for the initialization to go through.
+      resolver.setId(
+          "componentId"); // The resolver needs an ID for the initialization to go through.
       resolver.initialize();
       return resolver;
     } catch (IOException | SAXException | ComponentInitializationException ex) {
@@ -648,6 +650,8 @@ public class SamlClient {
   }
 
   private static XMLObject buildSamlObject(QName qname) {
-    return XMLObjectProviderRegistrySupport.getBuilderFactory().getBuilder(qname).buildObject(qname);
+    return XMLObjectProviderRegistrySupport.getBuilderFactory()
+        .getBuilder(qname)
+        .buildObject(qname);
   }
 }
