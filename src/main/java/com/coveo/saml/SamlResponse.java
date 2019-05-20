@@ -1,6 +1,6 @@
 package com.coveo.saml;
 
-import org.opensaml.saml2.core.Assertion;
+import org.opensaml.saml.saml2.core.Assertion;
 
 public class SamlResponse {
   private Assertion assertion;

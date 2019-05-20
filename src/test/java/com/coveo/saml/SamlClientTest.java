@@ -3,7 +3,6 @@ package com.coveo.saml;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
-import org.opensaml.xml.util.Base64;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -13,6 +12,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Base64;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -74,7 +74,7 @@ public class SamlClientTest {
     SamlClient client =
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
-    String decoded = new String(Base64.decode(client.getSamlRequest()), "UTF-8");
+    String decoded = new String(Base64.getDecoder().decode(client.getSamlRequest()), "UTF-8");
     assertTrue(decoded.contains(">myidentifier<"));
   }
 
@@ -117,13 +117,14 @@ public class SamlClientTest {
 
   @Test(expected = SamlException.class)
   public void decodeAndValidateSamlResponseRejectsATamperedResponse() throws Throwable {
-    String decoded = new String(Base64.decode(AN_ENCODED_RESPONSE), "UTF-8");
+    String decoded = new String(Base64.getDecoder().decode(AN_ENCODED_RESPONSE), "UTF-8");
     String tampered = decoded.replace("mlaporte", "evilperson");
     SamlClient client =
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(ASSERTION_DATE);
-    client.decodeAndValidateSamlResponse(Base64.encodeBytes(tampered.getBytes("UTF-8")));
+    client.decodeAndValidateSamlResponse(
+        Base64.getEncoder().encodeToString(tampered.getBytes("UTF-8")));
   }
 
   @Test
@@ -163,21 +164,22 @@ public class SamlClientTest {
             "http://some/url",
             getXml("adfs.xml"),
             SamlClient.SamlIdpBinding.Redirect);
-    String decoded = new String(Base64.decode(client.getSamlRequest()), "UTF-8");
+    String decoded = new String(Base64.getDecoder().decode(client.getSamlRequest()), "UTF-8");
     assertTrue(decoded.contains(">myidentifier<"));
   }
 
   // Test for https://www.kb.cert.org/vuls/id/475445
   @Test
   public void itIsNotVulnerableToCommentAttackFromOpenSAML() throws Throwable {
-    String decoded = new String(Base64.decode(AN_ENCODED_RESPONSE), "UTF-8");
+    String decoded = new String(Base64.getDecoder().decode(AN_ENCODED_RESPONSE), "UTF-8");
     String tampered = decoded.replace("mlaporte", "m<!---->laporte");
     SamlClient client =
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(ASSERTION_DATE);
     SamlResponse response =
-        client.decodeAndValidateSamlResponse(Base64.encodeBytes(tampered.getBytes("UTF-8")));
+        client.decodeAndValidateSamlResponse(
+            Base64.getEncoder().encodeToString(tampered.getBytes("UTF-8")));
 
     // Since comments are ignored from the signature validation, the decoding will work. Here we
     // ensure that the identity that ends up being returned is the proper one.
