@@ -62,11 +62,13 @@ public class SamlClientTest {
         SamlClient.SamlIdpBinding.POST,
         certificates);
   }
+
   @Test
   public void metadataXMLFromPingFederateCanBeLoaded() throws Throwable {
     SamlClient.fromMetadata(
         "myidentifier", "http://some/url", getXml("ping.xml"), SamlClient.SamlIdpBinding.POST);
   }
+
   @Test
   public void relyingPartyIdentifierAndAssertionConsumerServiceUrlCanBeOmittedForOkta()
       throws Throwable {

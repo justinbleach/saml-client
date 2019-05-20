@@ -378,6 +378,7 @@ public class SamlClient {
    *                                    SAML response.
    * @param metadata                    the XML metadata obtained from the identity provider.
    * @param samlBinding                 the HTTP method to use for binding to the IdP.
+   * @param certificates                list of certificates.
    * @return The created {@link SamlClient}.
    * @throws SamlException thrown if any error occur while loading the metadata information.
    */
@@ -394,12 +395,13 @@ public class SamlClient {
     DOMMetadataResolver metadataResolver = createMetadataResolver(metadata);
     EntityDescriptor entityDescriptor = getEntityDescriptor(metadataResolver);
 
-    IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);    
+    IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
     SingleSignOnService idpBinding = null;
-    if(idpSsoDescriptor.getSingleSignOnServices()!=null && !idpSsoDescriptor.getSingleSignOnServices().isEmpty()) {
-    	idpBinding = getIdpBinding(idpSsoDescriptor, samlBinding);
+    if (idpSsoDescriptor.getSingleSignOnServices() != null
+        && !idpSsoDescriptor.getSingleSignOnServices().isEmpty()) {
+      idpBinding = getIdpBinding(idpSsoDescriptor, samlBinding);
     }
-    
+
     List<X509Certificate> x509Certificates = getCertificates(idpSsoDescriptor);
     boolean isOkta = entityDescriptor.getEntityID().contains(".okta.com");
 
@@ -413,7 +415,7 @@ public class SamlClient {
       }
     }
 
-    if (idpBinding!=null && assertionConsumerServiceUrl == null && isOkta) {
+    if (idpBinding != null && assertionConsumerServiceUrl == null && isOkta) {
       // Again, Okta's own toolkit uses this value for the assertion consumer url, which
       // kinda makes no sense since this is supposed to be a url pointing to a server
       // outside Okta, but it probably just straight ignores this and use the one from
@@ -428,10 +430,10 @@ public class SamlClient {
     }
 
     String identityProviderUrl;
-    if(idpBinding!=null) {
-    	identityProviderUrl = idpBinding.getLocation();
-    }else {
-    	identityProviderUrl = assertionConsumerServiceUrl;
+    if (idpBinding != null) {
+      identityProviderUrl = idpBinding.getLocation();
+    } else {
+      identityProviderUrl = assertionConsumerServiceUrl;
     }
     String responseIssuer = entityDescriptor.getEntityID();
 
