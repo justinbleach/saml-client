@@ -2,6 +2,7 @@ package com.coveo.saml;
 
 import com.sun.org.apache.xerces.internal.parsers.DOMParser;
 
+import org.apache.commons.codec.binary.Base64;
 import org.joda.time.DateTime;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
@@ -40,10 +41,10 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -249,11 +250,7 @@ public class SamlClient {
 
     logger.trace("Issuing SAML request: " + stringWriter.toString());
 
-    try {
-      return Base64.getEncoder().encodeToString(stringWriter.toString().getBytes("UTF-8"));
-    } catch (UnsupportedEncodingException ex) {
-      throw new SamlException("Error while encoding SAML request", ex);
-    }
+    return Base64.encodeBase64String(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
   }
 
   /**
@@ -265,11 +262,7 @@ public class SamlClient {
    */
   public SamlResponse decodeAndValidateSamlResponse(String encodedResponse) throws SamlException {
     String decodedResponse;
-    try {
-      decodedResponse = new String(Base64.getDecoder().decode(encodedResponse), "UTF-8");
-    } catch (UnsupportedEncodingException ex) {
-      throw new SamlException("Cannot decode base64 encoded response", ex);
-    }
+    decodedResponse = new String(Base64.decodeBase64(encodedResponse), StandardCharsets.UTF_8);
 
     logger.trace("Validating SAML response: " + decodedResponse);
 
