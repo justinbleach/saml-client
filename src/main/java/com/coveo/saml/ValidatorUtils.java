@@ -5,7 +5,6 @@ import java.util.List;
 import javax.xml.bind.ValidationException;
 
 import org.joda.time.DateTime;
-import org.opensaml.saml.common.SAMLVersion;
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Conditions;
@@ -32,19 +31,12 @@ class ValidatorUtils {
    * @param responseIssuer the response issuer
    * @throws SamlException the saml exception
    */
-  private static void validateResponse(LogoutResponse response, String responseIssuer)
+  private static void validateResponse(StatusResponseType response, String responseIssuer)
       throws SamlException {
-    if (response.getStatus() == null) {
-      throw new SamlException("Status is required");
-    }
-    if (response.getID() == null || "".equals(response.getID())) {
-      throw new SamlException("ID is required");
-    }
-    if (!SAMLVersion.VERSION_20.equals(response.getVersion())) {
-      throw new SamlException("Wrong SAML version");
-    }
-    if (response.getIssueInstant() == null) {
-      throw new SamlException("IssueInstant must not be null");
+    try {
+      new ResponseSchemaValidator().validate(response);
+    } catch (ValidationException e) {
+      throw new SamlException("The response schema validation failed", e);
     }
 
     validateIssuer(response, responseIssuer);
