@@ -1,23 +1,25 @@
 package com.coveo.saml;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.junit.Test;
-import org.opensaml.saml2.core.StatusCode;
-import org.opensaml.xml.signature.Signature;
-import org.opensaml.xml.util.Base64;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
-
 import java.nio.charset.StandardCharsets;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 
-import static org.junit.Assert.*;
+import org.apache.commons.codec.binary.Base64;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.junit.Test;
+import org.opensaml.saml.saml2.core.StatusCode;
+import org.opensaml.xmlsec.signature.Signature;
 
 public class SamlClientTest {
   private static final DateTime ASSERTION_DATE = new DateTime(2016, 3, 21, 17, 0, DateTimeZone.UTC);
@@ -67,6 +69,12 @@ public class SamlClientTest {
   }
 
   @Test
+  public void metadataXMLFromPingFederateCanBeLoaded() throws Throwable {
+    SamlClient.fromMetadata(
+        "myidentifier", "http://some/url", getXml("ping.xml"), SamlClient.SamlIdpBinding.POST);
+  }
+
+  @Test
   public void relyingPartyIdentifierAndAssertionConsumerServiceUrlCanBeOmittedForOkta()
       throws Throwable {
     SamlClient.fromMetadata(null, null, getXml("okta.xml"), SamlClient.SamlIdpBinding.POST);
@@ -77,7 +85,8 @@ public class SamlClientTest {
     SamlClient client =
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
-    String decoded = new String(Base64.decode(client.getSamlRequest()), StandardCharsets.UTF_8);
+    String decoded =
+        new String(Base64.decodeBase64(client.getSamlRequest()), StandardCharsets.UTF_8);
     assertTrue(decoded.contains(">myidentifier<"));
   }
 
@@ -120,14 +129,14 @@ public class SamlClientTest {
 
   @Test(expected = SamlException.class)
   public void decodeAndValidateSamlResponseRejectsATamperedResponse() throws Throwable {
-    String decoded = new String(Base64.decode(AN_ENCODED_RESPONSE), StandardCharsets.UTF_8);
+    String decoded = new String(Base64.decodeBase64(AN_ENCODED_RESPONSE), StandardCharsets.UTF_8);
     String tampered = decoded.replace("mlaporte", "evilperson");
     SamlClient client =
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(ASSERTION_DATE);
     client.decodeAndValidateSamlResponse(
-        Base64.encodeBytes(tampered.getBytes(StandardCharsets.UTF_8)));
+        Base64.encodeBase64String(tampered.getBytes(StandardCharsets.UTF_8)));
   }
 
   @Test
@@ -167,14 +176,15 @@ public class SamlClientTest {
             "http://some/url",
             getXml("adfs.xml"),
             SamlClient.SamlIdpBinding.Redirect);
-    String decoded = new String(Base64.decode(client.getSamlRequest()), StandardCharsets.UTF_8);
+    String decoded =
+        new String(Base64.decodeBase64(client.getSamlRequest()), StandardCharsets.UTF_8);
     assertTrue(decoded.contains(">myidentifier<"));
   }
 
   // Test for https://www.kb.cert.org/vuls/id/475445
   @Test
   public void itIsNotVulnerableToCommentAttackFromOpenSAML() throws Throwable {
-    String decoded = new String(Base64.decode(AN_ENCODED_RESPONSE), StandardCharsets.UTF_8);
+    String decoded = new String(Base64.decodeBase64(AN_ENCODED_RESPONSE), StandardCharsets.UTF_8);
     String tampered = decoded.replace("mlaporte", "m<!---->laporte");
     SamlClient client =
         SamlClient.fromMetadata(
@@ -182,7 +192,7 @@ public class SamlClientTest {
     client.setDateTimeNow(ASSERTION_DATE);
     SamlResponse response =
         client.decodeAndValidateSamlResponse(
-            Base64.encodeBytes(tampered.getBytes(StandardCharsets.UTF_8)));
+            Base64.encodeBase64String(tampered.getBytes(StandardCharsets.UTF_8)));
 
     // Since comments are ignored from the signature validation, the decoding will work. Here we
     // ensure that the identity that ends up being returned is the proper one.
@@ -221,7 +231,7 @@ public class SamlClientTest {
     //Retrieve the saml client
     SamlClient client = getKeyCloakClient(false);
     //Retrieve the new encoded logout response with error status
-    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.NO_AVAILABLE_IDP_URI);
+    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.NO_AVAILABLE_IDP);
     SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse);
     assertTrue(logoutResponse.isNotValid());
   }
@@ -234,7 +244,7 @@ public class SamlClientTest {
   @Test
   public void decodeAndValidateSamlLogoutResponseWithInvalidSignature() throws Throwable {
     SamlClient client = getKeyCloakClient(true);
-    String encodedSamlLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS_URI);
+    String encodedSamlLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
     //Corrupt the signature  (decode => corrupt => encode)
     String decodedSamlLogoutResponse = decode(encodedSamlLogoutResponse);
     int index = decodedSamlLogoutResponse.indexOf("<ds:SignatureValue>") + 19;
@@ -261,7 +271,7 @@ public class SamlClientTest {
     //Retrieve the saml client
     SamlClient client = getKeyCloakClient(true);
     //Retrieve the new encoded logout response
-    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS_URI);
+    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
     //Decode the encoded logout response to check it is signed
     String decodedResponse = decode(encodedLogoutResponse);
     assertTrue(decodedResponse.contains(Signature.DEFAULT_ELEMENT_LOCAL_NAME));
@@ -350,7 +360,7 @@ public class SamlClientTest {
     //Retrieve the saml client
     SamlClient client = getKeyCloakClient(false);
     //Retrieve the new encoded logout response with valid status
-    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS_URI);
+    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
     SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse);
     assertTrue(logoutResponse.isValid());
   }
@@ -364,7 +374,7 @@ public class SamlClientTest {
     //Retrieve the saml client
     SamlClient client = getKeyCloakClient(true);
     //Retrieve the new encoded logout response with valid status
-    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS_URI);
+    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
     SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse);
     assertTrue(logoutResponse.isValid());
   }
@@ -380,7 +390,8 @@ public class SamlClientTest {
 
     String decoded =
         new String(
-            Base64.decode(client.getLogoutRequest("mlaporte@coveo.com")), StandardCharsets.UTF_8);
+            Base64.decodeBase64(client.getLogoutRequest("mlaporte@coveo.com")),
+            StandardCharsets.UTF_8);
     assertTrue(decoded.contains(">myidentifier<"));
   }
 
@@ -395,10 +406,10 @@ public class SamlClientTest {
 
     String decoded =
         new String(
-            Base64.decode(client.getSamlLogoutResponse(StatusCode.SUCCESS_URI, null)),
+            Base64.decodeBase64(client.getSamlLogoutResponse(StatusCode.SUCCESS, null)),
             StandardCharsets.UTF_8);
     assertTrue(decoded.contains(">myidentifier<"));
-    assertTrue(decoded.contains(StatusCode.SUCCESS_URI));
+    assertTrue(decoded.contains(StatusCode.SUCCESS));
   }
 
   private SamlClient getKeyCloakClient(boolean signingNewDocument)
@@ -425,11 +436,11 @@ public class SamlClientTest {
   }
 
   private String decode(String encoded) {
-    return new String(Base64.decode(encoded), StandardCharsets.UTF_8);
+    return new String(Base64.decodeBase64(encoded), StandardCharsets.UTF_8);
   }
 
   private String encode(String decoded) {
-    return Base64.encodeBytes(decoded.getBytes(StandardCharsets.UTF_8));
+    return Base64.encodeBase64String(decoded.getBytes(StandardCharsets.UTF_8));
   }
 
   private SamlLogoutResponse decodeAndValidateSamlLogoutResponse(String encodedResponse)

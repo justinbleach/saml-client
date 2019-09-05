@@ -1,17 +1,24 @@
 package com.coveo.saml;
 
-import org.joda.time.DateTime;
-import org.opensaml.common.SignableSAMLObject;
-import org.opensaml.saml2.core.*;
-import org.opensaml.saml2.core.validator.LogoutRequestSchemaValidator;
-import org.opensaml.saml2.core.validator.LogoutResponseSchemaValidator;
-import org.opensaml.saml2.core.validator.ResponseSchemaValidator;
-import org.opensaml.xml.security.credential.Credential;
-import org.opensaml.xml.signature.Signature;
-import org.opensaml.xml.signature.SignatureValidator;
-import org.opensaml.xml.validation.ValidationException;
-
 import java.util.List;
+
+import javax.xml.bind.ValidationException;
+
+import org.joda.time.DateTime;
+import org.opensaml.saml.common.SAMLVersion;
+import org.opensaml.saml.common.SignableSAMLObject;
+import org.opensaml.saml.saml2.core.Assertion;
+import org.opensaml.saml.saml2.core.Conditions;
+import org.opensaml.saml.saml2.core.LogoutRequest;
+import org.opensaml.saml.saml2.core.LogoutResponse;
+import org.opensaml.saml.saml2.core.RequestAbstractType;
+import org.opensaml.saml.saml2.core.Response;
+import org.opensaml.saml.saml2.core.StatusCode;
+import org.opensaml.saml.saml2.core.StatusResponseType;
+import org.opensaml.security.credential.Credential;
+import org.opensaml.xmlsec.signature.Signature;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.SignatureValidator;
 
 /**
  * The type Validator utils.
@@ -27,11 +34,19 @@ class ValidatorUtils {
    */
   private static void validateResponse(LogoutResponse response, String responseIssuer)
       throws SamlException {
-    try {
-      new LogoutResponseSchemaValidator().validate(response);
-    } catch (ValidationException ex) {
-      throw new SamlException("The response schema validation failed", ex);
+    if (response.getStatus() == null) {
+      throw new SamlException("Status is required");
     }
+    if (response.getID() == null || "".equals(response.getID())) {
+      throw new SamlException("ID is required");
+    }
+    if (!SAMLVersion.VERSION_20.equals(response.getVersion())) {
+      throw new SamlException("Wrong SAML version");
+    }
+    if (response.getIssueInstant() == null) {
+      throw new SamlException("IssueInstant must not be null");
+    }
+
     validateIssuer(response, responseIssuer);
   }
 
@@ -45,7 +60,7 @@ class ValidatorUtils {
 
     String statusCode = response.getStatus().getStatusCode().getValue();
 
-    if (!StatusCode.SUCCESS_URI.equals(statusCode)) {
+    if (!StatusCode.SUCCESS.equals(statusCode)) {
       throw new SamlException("Invalid status code: " + statusCode);
     }
   }
@@ -179,12 +194,11 @@ class ValidatorUtils {
     return credentials
         .stream()
         .anyMatch(
-            c -> {
+            credential -> {
               try {
-                SignatureValidator signatureValidator = new SignatureValidator(c);
-                signatureValidator.validate(signature);
+                SignatureValidator.validate(signature, credential);
                 return true;
-              } catch (ValidationException ex) {
+              } catch (SignatureException ex) {
                 return false;
               }
             });
