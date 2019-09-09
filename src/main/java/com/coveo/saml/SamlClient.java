@@ -12,7 +12,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -38,12 +37,10 @@ import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.io.Marshaller;
-import org.opensaml.core.xml.io.MarshallerFactory;
 import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.core.xml.io.UnmarshallingException;
 import org.opensaml.core.xml.schema.impl.XSAnyImpl;
 import org.opensaml.core.xml.schema.impl.XSStringImpl;
-import org.opensaml.saml.common.SAMLException;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.common.SAMLVersion;
 import org.opensaml.saml.common.SignableSAMLObject;
@@ -69,19 +66,22 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
+import org.opensaml.security.SecurityException;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.credential.UsageType;
 import org.opensaml.security.x509.BasicX509Credential;
-import org.opensaml.security.x509.X509Credential;
+import org.opensaml.xmlsec.SignatureSigningParameters;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
 import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
-import org.opensaml.xmlsec.signature.KeyInfo;
+import org.opensaml.xmlsec.keyinfo.impl.X509KeyInfoGeneratorFactory;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.X509Data;
+import org.opensaml.xmlsec.signature.impl.SignatureBuilder;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
-import org.opensaml.xmlsec.signature.support.Signer;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.SignatureSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -263,6 +263,7 @@ public class SamlClient {
     request.setIssueInstant(DateTime.now());
     request.setProtocolBinding(
         "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + this.samlBinding.toString());
+    request.setDestination(identityProviderUrl);
     request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
@@ -272,6 +273,8 @@ public class SamlClient {
     NameIDPolicy nameIDPolicy = (NameIDPolicy) buildSamlObject(NameIDPolicy.DEFAULT_ELEMENT_NAME);
     nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
     request.setNameIDPolicy(nameIDPolicy);
+
+    signSAMLObject(request);
 
     StringWriter stringWriter;
     try {
@@ -913,58 +916,30 @@ public class SamlClient {
     }
   }
 
-  private Signature setSignatureRaw(String signatureAlgorithm, X509Credential cred)
-      throws SAMLException {
-    Signature signature = (Signature) buildSamlObject(Signature.DEFAULT_ELEMENT_NAME);
-    signature.setSigningCredential(cred);
-    signature.setSignatureAlgorithm(signatureAlgorithm);
-    signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
-
-    try {
-      KeyInfo keyInfo = (KeyInfo) buildSamlObject(KeyInfo.DEFAULT_ELEMENT_NAME);
-      X509Data data = (X509Data) buildSamlObject(X509Data.DEFAULT_ELEMENT_NAME);
-      org.opensaml.xmlsec.signature.X509Certificate cert =
-          (org.opensaml.xmlsec.signature.X509Certificate)
-              buildSamlObject(org.opensaml.xmlsec.signature.X509Certificate.DEFAULT_ELEMENT_NAME);
-      String value =
-          org.apache.xml.security.utils.Base64.encode(cred.getEntityCertificate().getEncoded());
-      cert.setValue(value);
-      data.getX509Certificates().add(cert);
-      keyInfo.getX509Datas().add(data);
-      signature.setKeyInfo(keyInfo);
-      return signature;
-
-    } catch (CertificateEncodingException e) {
-      throw new SAMLException("Error getting certificate", e);
-    }
-  }
-
   private void signSAMLObject(SignableSAMLObject samlObject) throws SamlException {
-
-    try {
-
-      if (spCredential != null) {
-        Signature signature =
-            this.setSignatureRaw(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256, spCredential);
-
+    if (spCredential != null) {
+      try {
+        // Describe how we're going to sign the request
+        SignatureBuilder signer = new SignatureBuilder();
+        Signature signature = signer.buildObject(Signature.DEFAULT_ELEMENT_NAME);
+        signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
+        signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
+        signature.setKeyInfo(
+            new X509KeyInfoGeneratorFactory().newInstance().generate(spCredential));
+        signature.setSigningCredential(spCredential);
         samlObject.setSignature(signature);
 
-        List<Signature> signatureList = new ArrayList<>();
-        signatureList.add(signature);
-
-        // Marshall and Sign
-        MarshallerFactory marshallerFactory =
-            XMLObjectProviderRegistrySupport.getMarshallerFactory();
-        Marshaller marshaller = marshallerFactory.getMarshaller(samlObject);
-
-        marshaller.marshall(samlObject);
-
-        org.apache.xml.security.Init.init();
-        Signer.signObjects(signatureList);
+        // Actually sign the request
+        SignatureSigningParameters signingParameters = new SignatureSigningParameters();
+        signingParameters.setSigningCredential(spCredential);
+        signingParameters.setSignatureCanonicalizationAlgorithm(
+            SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
+        signingParameters.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
+        signingParameters.setKeyInfoGenerator(new X509KeyInfoGeneratorFactory().newInstance());
+        SignatureSupport.signObject(samlObject, signingParameters);
+      } catch (SecurityException | MarshallingException | SignatureException e) {
+        throw new SamlException("Failed to sign request", e);
       }
-    } catch (Exception e) {
-      e.printStackTrace();
-      throw new SamlException("Failed to sign request", e);
     }
   }
 }
