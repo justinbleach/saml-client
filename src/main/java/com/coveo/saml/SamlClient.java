@@ -55,6 +55,7 @@ import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.NameIDPolicy;
+import org.opensaml.saml.saml2.core.RequestAbstractType;
 import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.Status;
 import org.opensaml.saml.saml2.core.StatusCode;
@@ -247,45 +248,6 @@ public class SamlClient {
         responseIssuer,
         Collections.singletonList(certificate),
         SamlIdpBinding.POST);
-  }
-
-  /**
-   * Builds an encoded SAML request.
-   *
-   * @return The base-64 encoded SAML request.
-   * @throws SamlException thrown if an unexpected error occurs.
-   */
-  public String getSamlRequest() throws SamlException {
-    AuthnRequest request = (AuthnRequest) buildSamlObject(AuthnRequest.DEFAULT_ELEMENT_NAME);
-    request.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
-
-    request.setVersion(SAMLVersion.VERSION_20);
-    request.setIssueInstant(DateTime.now());
-    request.setProtocolBinding(
-        "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + this.samlBinding.toString());
-    request.setDestination(identityProviderUrl);
-    request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
-
-    Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
-    issuer.setValue(relyingPartyIdentifier);
-    request.setIssuer(issuer);
-
-    NameIDPolicy nameIDPolicy = (NameIDPolicy) buildSamlObject(NameIDPolicy.DEFAULT_ELEMENT_NAME);
-    nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
-    request.setNameIDPolicy(nameIDPolicy);
-
-    signSAMLObject(request);
-
-    StringWriter stringWriter;
-    try {
-      stringWriter = marshallXmlObject(request);
-    } catch (MarshallingException e) {
-      throw new SamlException("Error while marshalling SAML request to XML", e);
-    }
-
-    logger.trace("Issuing SAML request: " + stringWriter.toString());
-
-    return Base64.encodeBase64String(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
   }
 
   /**
@@ -663,15 +625,13 @@ public class SamlClient {
     }
     return map;
   }
-  /**
-   * Gets the encoded logout request.
+
+  /** Create a minimal SAML request
    *
-   * @param nameId the name id
-   * @return the logout request
-   * @throws SamlException the saml exception
-   */
-  public String getLogoutRequest(String nameId) throws SamlException {
-    LogoutRequest request = (LogoutRequest) buildSamlObject(LogoutRequest.DEFAULT_ELEMENT_NAME);
+   * @param defaultElementName The SomeClass.DEFAULT_ELEMENT_NAME we'll be casting this object into
+   * */
+  private RequestAbstractType getBasicSamlRequest(QName defaultElementName) {
+    RequestAbstractType request = (RequestAbstractType) buildSamlObject(defaultElementName);
     request.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
 
     request.setVersion(SAMLVersion.VERSION_20);
@@ -681,13 +641,15 @@ public class SamlClient {
     issuer.setValue(relyingPartyIdentifier);
     request.setIssuer(issuer);
 
-    NameID nid = (NameID) buildSamlObject(NameID.DEFAULT_ELEMENT_NAME);
-    nid.setValue(nameId);
-    request.setNameID(nid);
-    //Add the signature
-    signSAMLObject(request);
+    return request;
+  }
 
-    //Convert the xml object to string
+  /** Convert a SAML request to a base64-encoded String
+   *
+   * @param request The request to encode
+   * @throws SamlException if marshalling the request fails
+   * */
+  private String marshallAndEncodeSamlObject(RequestAbstractType request) throws SamlException {
     StringWriter stringWriter;
     try {
       stringWriter = marshallXmlObject(request);
@@ -695,9 +657,51 @@ public class SamlClient {
       throw new SamlException("Error while marshalling SAML request to XML", e);
     }
 
-    logger.trace("Issuing SAML Logout request: " + stringWriter.toString());
+    logger.trace("Issuing SAML request: " + stringWriter.toString());
 
     return Base64.encodeBase64String(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
+  }
+
+  /**
+   * Builds an encoded SAML request.
+   *
+   * @return The base-64 encoded SAML request.
+   * @throws SamlException thrown if an unexpected error occurs.
+   */
+  public String getSamlRequest() throws SamlException {
+    AuthnRequest request = (AuthnRequest) getBasicSamlRequest(AuthnRequest.DEFAULT_ELEMENT_NAME);
+
+    request.setProtocolBinding(
+            "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + this.samlBinding.toString());
+    request.setDestination(identityProviderUrl);
+    request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
+
+    NameIDPolicy nameIDPolicy = (NameIDPolicy) buildSamlObject(NameIDPolicy.DEFAULT_ELEMENT_NAME);
+    nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
+    request.setNameIDPolicy(nameIDPolicy);
+
+    signSAMLObject(request);
+
+    return marshallAndEncodeSamlObject(request);
+  }
+
+  /**
+   * Gets the encoded logout request.
+   *
+   * @param nameId the name id
+   * @return the logout request
+   * @throws SamlException the saml exception
+   */
+  public String getLogoutRequest(String nameId) throws SamlException {
+    LogoutRequest request = (LogoutRequest) getBasicSamlRequest(LogoutRequest.DEFAULT_ELEMENT_NAME);
+
+    NameID nid = (NameID) buildSamlObject(NameID.DEFAULT_ELEMENT_NAME);
+    nid.setValue(nameId);
+    request.setNameID(nid);
+
+    signSAMLObject(request);
+
+    return marshallAndEncodeSamlObject(request);
   }
   /**
    * Gets saml logout response.
