@@ -624,11 +624,11 @@ public class SamlClient {
    *
    * @param publicKey  the public key
    * @param privateKey the private key
-   * @throws SamlException the saml exception
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
   public void setSPKeys(String publicKey, String privateKey) throws SamlException {
     if (publicKey == null || privateKey == null) {
-      return;
+      throw new SamlException("No credentials provided");
     }
     PrivateKey pk = loadPrivateKey(privateKey);
     X509Certificate cert = loadCertificate(publicKey);
