@@ -552,7 +552,6 @@ public class SamlClient {
             }
 
             try {
-              setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
               setFeature(XERCES_FEATURE_PREFIX + DISALLOW_DOCTYPE_DECL_FEATURE, true);
             } catch (Throwable ex) {
               throw new SamlException(
