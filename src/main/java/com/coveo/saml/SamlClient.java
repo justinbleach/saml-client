@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -59,6 +58,9 @@ import javax.xml.bind.ValidationException;
 import javax.xml.namespace.QName;
 
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
+
+import static com.sun.org.apache.xerces.internal.impl.Constants.DISALLOW_DOCTYPE_DECL_FEATURE;
+import static com.sun.org.apache.xerces.internal.impl.Constants.XERCES_FEATURE_PREFIX;
 
 public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
@@ -547,6 +549,13 @@ public class SamlClient {
               throw new SamlException(
                   "Cannot disable comments parsing to mitigate https://www.kb.cert.org/vuls/id/475445",
                   ex);
+            }
+
+            try {
+              setFeature(XERCES_FEATURE_PREFIX + DISALLOW_DOCTYPE_DECL_FEATURE, true);
+            } catch (Throwable ex) {
+              throw new SamlException(
+                  "Cannot disable external entities to prevent XXE injection", ex);
             }
           }
         };
