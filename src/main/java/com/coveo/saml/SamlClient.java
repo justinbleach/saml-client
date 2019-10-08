@@ -31,7 +31,6 @@ import javax.servlet.http.HttpServletResponse;
 import javax.xml.namespace.QName;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.xerces.parsers.DOMParser;
 import org.joda.time.DateTime;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
@@ -85,11 +84,12 @@ import org.opensaml.xmlsec.signature.support.SignatureException;
 import org.opensaml.xmlsec.signature.support.SignatureSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
 
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
+import net.shibboleth.utilities.java.support.xml.BasicParserPool;
+import net.shibboleth.utilities.java.support.xml.XMLParserException;
 
 public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
@@ -98,6 +98,7 @@ public class SamlClient {
   private static final String HTTP_RESP_SAML_PARAM = "SAMLResponse";
 
   private static boolean initializedOpenSaml = false;
+  private BasicParserPool domParser;
 
   public enum SamlIdpBinding {
     POST,
@@ -190,6 +191,7 @@ public class SamlClient {
     this.responseIssuer = responseIssuer;
     credentials = certificates.stream().map(SamlClient::getCredential).collect(Collectors.toList());
     this.samlBinding = samlBinding;
+    this.domParser = createDOMParser();
   }
 
   /**
@@ -437,34 +439,27 @@ public class SamlClient {
     }
   }
 
-  private static DOMParser createDOMParser() throws SamlException {
-    DOMParser parser =
-        new DOMParser() {
-          {
-            try {
-              setFeature(INCLUDE_COMMENTS_FEATURE, false);
-            } catch (Throwable ex) {
-              throw new SamlException(
-                  "Cannot disable comments parsing to mitigate https://www.kb.cert.org/vuls/id/475445",
-                  ex);
-            }
-          }
-        };
+  private static BasicParserPool createDOMParser() throws SamlException {
+    BasicParserPool basicParserPool = new BasicParserPool();
+    try {
+      basicParserPool.initialize();
+    } catch (ComponentInitializationException e) {
+      throw new SamlException("Failed to create an XML parser");
+    }
 
-    return parser;
+    return basicParserPool;
   }
 
   private static DOMMetadataResolver createMetadataResolver(Reader metadata) throws SamlException {
     try {
-      DOMParser parser = createDOMParser();
-      parser.parse(new InputSource(metadata));
-      DOMMetadataResolver resolver =
-          new DOMMetadataResolver(parser.getDocument().getDocumentElement());
+      BasicParserPool parser = createDOMParser();
+      Document metadataDocument = parser.parse(metadata);
+      DOMMetadataResolver resolver = new DOMMetadataResolver(metadataDocument.getDocumentElement());
       resolver.setId(
           "componentId"); // The resolver needs an ID for the initialization to go through.
       resolver.initialize();
       return resolver;
-    } catch (IOException | SAXException | ComponentInitializationException ex) {
+    } catch (ComponentInitializationException | XMLParserException ex) {
       throw new SamlException("Cannot load identity provider metadata", ex);
     }
   }
@@ -573,6 +568,7 @@ public class SamlClient {
    * Decodes and validates an SAML logout request send by an identity provider.
    *
    * @param encodedRequest the encoded request send by the identity provider.
+   * @param nameID The user to logout
    * @throws SamlException if the signature is invalid, or if any other error occurs.
    */
   public void decodeAndValidateSamlLogoutRequest(String encodedRequest, String nameID)
@@ -909,13 +905,12 @@ public class SamlClient {
     decodedResponse = new String(Base64.decodeBase64(encodedResponse), StandardCharsets.UTF_8);
     logger.trace("Validating SAML response: " + decodedResponse);
     try {
-      DOMParser parser = createDOMParser();
-      parser.parse(new InputSource(new StringReader(decodedResponse)));
+      Document responseDocument = domParser.parse(new StringReader(decodedResponse));
       return (SAMLObject)
           XMLObjectProviderRegistrySupport.getUnmarshallerFactory()
-              .getUnmarshaller(parser.getDocument().getDocumentElement())
-              .unmarshall(parser.getDocument().getDocumentElement());
-    } catch (IOException | SAXException | UnmarshallingException ex) {
+              .getUnmarshaller(responseDocument.getDocumentElement())
+              .unmarshall(responseDocument.getDocumentElement());
+    } catch (UnmarshallingException | XMLParserException ex) {
       throw new SamlException("Cannot decode xml encoded response", ex);
     }
   }
