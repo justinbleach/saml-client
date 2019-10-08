@@ -10,12 +10,10 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -76,6 +74,7 @@ import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
 import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.X509KeyInfoGeneratorFactory;
+import org.opensaml.xmlsec.signature.SignableXMLObject;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.X509Data;
 import org.opensaml.xmlsec.signature.impl.SignatureBuilder;
@@ -819,32 +818,6 @@ public class SamlClient {
         .buildObject(qname);
   }
 
-  private PrivateKey createPrivateKey(byte[] file)
-      throws InvalidKeySpecException, NoSuchAlgorithmException {
-    PKCS8EncodedKeySpec kspec = new PKCS8EncodedKeySpec(file);
-    KeyFactory kf = KeyFactory.getInstance("RSA");
-    return kf.generatePrivate(kspec);
-  }
-
-  private X509Certificate createCertificate(FileInputStream fis) throws SamlException {
-    try {
-      BufferedInputStream bis = new BufferedInputStream(fis);
-
-      CertificateFactory cf = CertificateFactory.getInstance("X.509");
-
-      if (bis.available() > 0) {
-        X509Certificate cert = (X509Certificate) cf.generateCertificate(bis);
-        System.out.println(cert.toString());
-        bis.close();
-        return cert;
-      }
-
-      bis.close();
-      throw new SamlException("empty public key");
-    } catch (Exception e) {
-      throw new SamlException("Couldn't load public key", e);
-    }
-  }
   /**
    * Decode the encrypted assertion.
    *
@@ -869,22 +842,40 @@ public class SamlClient {
     }
   }
 
+  /**
+   * Load an X.509 certificate
+   * @param filename The path of the certificate
+   * */
   private X509Certificate loadCertificate(String filename) throws SamlException {
-    try {
-      FileInputStream fis = new FileInputStream(filename);
-      return createCertificate(fis);
+    try (FileInputStream fis = new FileInputStream(filename);
+         BufferedInputStream bis = new BufferedInputStream(fis)) {
+
+      CertificateFactory cf = CertificateFactory.getInstance("X.509");
+
+      return (X509Certificate) cf.generateCertificate(bis);
+
     } catch (FileNotFoundException e) {
+      throw new SamlException("Public key file doesn't exist", e);
+    } catch (Exception e) {
       throw new SamlException("Couldn't load public key", e);
     }
   }
 
+  /**
+   * Load a PKCS8 key
+   * @param filename The path of the key
+   * */
   private PrivateKey loadPrivateKey(String filename) throws SamlException {
-    try {
-      RandomAccessFile raf = new RandomAccessFile(filename, "r");
+    try (RandomAccessFile raf = new RandomAccessFile(filename, "r")) {
       byte[] buf = new byte[(int) raf.length()];
       raf.readFully(buf);
-      raf.close();
-      return createPrivateKey(buf);
+      PKCS8EncodedKeySpec kspec = new PKCS8EncodedKeySpec(buf);
+      KeyFactory kf = KeyFactory.getInstance("RSA");
+
+      return kf.generatePrivate(kspec);
+
+    } catch (FileNotFoundException e) {
+      throw new SamlException("Private key file doesn't exist", e);
     } catch (Exception e) {
       throw new SamlException("Couldn't load private key", e);
     }
@@ -915,6 +906,12 @@ public class SamlClient {
     }
   }
 
+  /** Sign a SamlObject with default settings.
+   * Note that this method is a no-op if spCredential is unset.
+   * @param samlObject The object to sign
+   *
+   * @throws SamlException if {@link SignatureSupport#signObject(SignableXMLObject, SignatureSigningParameters) signObject} fails
+   * */
   private void signSAMLObject(SignableSAMLObject samlObject) throws SamlException {
     if (spCredential != null) {
       try {
