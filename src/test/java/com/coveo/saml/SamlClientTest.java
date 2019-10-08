@@ -221,6 +221,24 @@ public class SamlClientTest {
     SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE);
     assertEquals("mlaporte@coveo.com", response.getNameID());
   }
+
+  // Test for https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html
+  @Test
+  public void itIsNotVulnerableToXXEAttacks() throws Throwable {
+    String decoded = new String(Base64.decodeBase64(AN_ENCODED_RESPONSE), StandardCharsets.UTF_8);
+    String withDtd = "<!DOCTYPE note SYSTEM \"Note.dtd\">" + decoded;
+    SamlClient client =
+        SamlClient.fromMetadata(
+            "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
+    client.setDateTimeNow(ASSERTION_DATE);
+    try {
+      client.decodeAndValidateSamlResponse(
+          Base64.encodeBase64String(withDtd.getBytes(StandardCharsets.UTF_8)));
+      assertTrue(false);
+    } catch (SamlException ex) {
+      assertTrue(ex.getCause().getCause().toString().contains("DOCTYPE is disallowed"));
+    }
+  }
   /**
    * Decode and validate saml logout invalid response.
    *
