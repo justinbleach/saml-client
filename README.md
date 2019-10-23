@@ -45,7 +45,6 @@ This library provide an easy way to generate the SAML request and then supports 
     String idpUrl = client.getIdentityProviderUrl();
     // redirect to the identity provider, passing the encoded request with the SAMLRequest form parameter.
 ```
-
 ## Processing an SAML response
 
 ```java
@@ -53,7 +52,19 @@ This library provide an easy way to generate the SAML request and then supports 
     SamlResponse response = client.decodeAndValidateSamlResponse(encodedResponse);
     String authenticatedUser = response.getNameID();
 ```
+## Generating a SAML logout request (SP initiated SLO)
 
+```java
+    String encodedRequest = getLogoutRequest(nameID);
+    // redirect to the identity provider, passing the encoded request with the SAMLRequest form parameter.
+```
+## Generating a SAML logout response (IDP initiated SLO)
+
+```java
+    //Allow to inform the IDP the state of the service provider logout
+    String encodedRequest = getSamlLogoutResponse(statusCode, statusMessage);
+    // redirect to the identity provider, passing the encoded request with the SAMLRequest form parameter.
+```
 ## Using the helpers for servlet requests and responses
 
 ```java
@@ -62,6 +73,12 @@ This library provide an easy way to generate the SAML request and then supports 
     ...
     // To process the POST containing the SAML response
     SamlResponse response = client.processPostFromIdentityProvider(servletRequest);
+    ...
+    // To process the POST containing the SAML Logout Request
+    processLogoutRequestPostFromIdentityProvider(servletRequest,nameID)
+    ...
+    //To process the POST containing the SAML Logout Response 
+    processPostLogoutResponseFromIdentityProvider(servletRequest)
 ```
 
 # Identity Provider Configuration
@@ -81,3 +98,19 @@ To configure Okta to work with this library, create an SAML 2.0 application with
 
 * The *Single sign on URL* should be the URL that processes SAML responses (e.g. assertions).
 * The *Audience URI* should be a value that matches the one you'll specify when initializing `SamlClient`.
+
+# Encryption
+
+To generate the public / private keys : 
+```command
+openssl req -new -x509 -days 365 -nodes -sha256 -out saml-public-key.crt -keyout saml-private-key.pem
+ 
+openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in saml-private-key.pem -out saml-private-key.key
+ 
+openssl pkcs8 -topk8 -nocrypt -inform PEM -in saml-private-key.key -outform DER -out saml-private-key.pk8
+```
+To add the keys :
+```java
+    // To add the keys (is needed only if you have encrypted assertion or if you want to sign documents)
+    client.setSPKeys(publicKeyPath,privateKeyPath);
+```

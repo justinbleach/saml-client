@@ -1,21 +1,25 @@
 package com.coveo.saml;
 
-import org.apache.commons.codec.binary.Base64;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
-
 import java.nio.charset.StandardCharsets;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.apache.commons.codec.binary.Base64;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.junit.Test;
+import org.opensaml.saml.saml2.core.StatusCode;
+import org.opensaml.xmlsec.signature.Signature;
 
 public class SamlClientTest {
   private static final DateTime ASSERTION_DATE = new DateTime(2016, 3, 21, 17, 0, DateTimeZone.UTC);
@@ -32,7 +36,7 @@ public class SamlClientTest {
   private static final String AN_ENCODED_RESPONSE_HUB =
       "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHNhbWwycDpSZXNwb25zZSBEZXN0aW5hdGlvbj0iaHR0cHM6Ly9zcHRlc3QuaWFtc2hvd2Nhc2UuY29tL2FjcyIgSUQ9Il8yMDA0NjEzYi1mZDdjLTRkMTctYjAwNy03NGIyN2JmYzhiODIiIEluUmVzcG9uc2VUbz0iYWU4ZDY3N2JlN2U0ZjNiNzcxZjU2NjljMDgwNzcyZGEyNWM1Y2I0YjYiIElzc3VlSW5zdGFudD0iMjAxOC0wOC0xNlQwNjo1NDo0OS44NjZaIiBWZXJzaW9uPSIyLjAiIHhtbG5zOnNhbWwycD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnByb3RvY29sIj48c2FtbDI6SXNzdWVyIHhtbG5zOnNhbWwyPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIj5qZXRicmFpbnMuY29tL2h1Yjwvc2FtbDI6SXNzdWVyPjxzYW1sMnA6U3RhdHVzPjxzYW1sMnA6U3RhdHVzQ29kZSBWYWx1ZT0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnN0YXR1czpTdWNjZXNzIi8+PC9zYW1sMnA6U3RhdHVzPjxzYW1sMjpBc3NlcnRpb24gSUQ9Il9lZTk0MzI0Yy0yNWViLTQ3YzktOWZiNi1kZjk2NTRhNjFiOTkiIElzc3VlSW5zdGFudD0iMjAxOC0wOC0xNlQwNjo1NDo0OS44NjZaIiBWZXJzaW9uPSIyLjAiIHhtbG5zOnNhbWwyPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXNzZXJ0aW9uIiB4bWxuczp4cz0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiPjxzYW1sMjpJc3N1ZXI+amV0YnJhaW5zLmNvbS9odWI8L3NhbWwyOklzc3Vlcj48ZHM6U2lnbmF0dXJlIHhtbG5zOmRzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjIj48ZHM6U2lnbmVkSW5mbz48ZHM6Q2Fub25pY2FsaXphdGlvbk1ldGhvZCBBbGdvcml0aG09Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvMTAveG1sLWV4Yy1jMTRuIyIvPjxkczpTaWduYXR1cmVNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjcnNhLXNoYTEiLz48ZHM6UmVmZXJlbmNlIFVSST0iI19lZTk0MzI0Yy0yNWViLTQ3YzktOWZiNi1kZjk2NTRhNjFiOTkiPjxkczpUcmFuc2Zvcm1zPjxkczpUcmFuc2Zvcm0gQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjZW52ZWxvcGVkLXNpZ25hdHVyZSIvPjxkczpUcmFuc2Zvcm0gQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxLzEwL3htbC1leGMtYzE0biMiPjxlYzpJbmNsdXNpdmVOYW1lc3BhY2VzIFByZWZpeExpc3Q9InhzIiB4bWxuczplYz0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4jIi8+PC9kczpUcmFuc2Zvcm0+PC9kczpUcmFuc2Zvcm1zPjxkczpEaWdlc3RNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwLzA5L3htbGRzaWcjc2hhMSIvPjxkczpEaWdlc3RWYWx1ZT54NEJwcE12eis0aGt2NEdTQSt6WGRTOFJrZE09PC9kczpEaWdlc3RWYWx1ZT48L2RzOlJlZmVyZW5jZT48L2RzOlNpZ25lZEluZm8+PGRzOlNpZ25hdHVyZVZhbHVlPkpCNjZqUll1NlpRdXBqSG0vSVJDM3ZOcDRiZ1IrQlV0UHRES3FQT2ZOb2FzS1J5c3MycHdERHNkODc0RGxkaGVMNy9YYkZ6RWdZT2R4ZkM3Z1V5S2laYVJTM0NGcHlTWkx0d0pDUE51aEJsMStLZEgraU9KTkZYYnVGakFoQmtCWXU4SklQTWt3UUVNSlhCTFZtSTdicXZIdFNqbmd3bnNkTXFqQ01TcnFRVlBtVmJhZXZReTlJUFhZOUFJQ05WWk4xYXJGUUZIZ3k5Qzh5STlkalZqbCtGMTdmeE1iL2pEZU4yTVI3NUJyUE5UM2p3dnNHamhQWGtuTzlwcWlNREZTV2NQVlhiUGtmaStPNTFiWDFudVdnWnpFTlhieUltZ2R2TXBaSzNUTVpLZVdLbjNIRDl2anJaVjdGTnYydkdJbE4zRUlTVlBNcUdvQVJlRHJpYVg5dz09PC9kczpTaWduYXR1cmVWYWx1ZT48ZHM6S2V5SW5mbz48ZHM6WDUwOURhdGE+PGRzOlg1MDlDZXJ0aWZpY2F0ZT5NSUlET2pDQ0FpSUNDUUN0TEhCMmNuNFZNREFOQmdrcWhraUc5dzBCQVFzRkFEQmZNUXN3Q1FZRFZRUUdFd0pFUlRFTU1Bb0dBMVVFCkNBd0RUbEpYTVJFd0R3WURWUVFIREFoTmRXVnVjM1JsY2pFaE1COEdBMVVFQ2d3WVEyOXVjMlZ1YzJVZ1EyOXVjM1ZzZEdsdVp5QkgKYldKSU1Rd3dDZ1lEVlFRTERBTkVSVll3SGhjTk1UZ3dPREUwTVRJeE5EUTBXaGNOTVRrd09ERTBNVEl4TkRRMFdqQmZNUXN3Q1FZRApWUVFHRXdKRVJURU1NQW9HQTFVRUNBd0RUbEpYTVJFd0R3WURWUVFIREFoTmRXVnVjM1JsY2pFaE1COEdBMVVFQ2d3WVEyOXVjMlZ1CmMyVWdRMjl1YzNWc2RHbHVaeUJIYldKSU1Rd3dDZ1lEVlFRTERBTkVSVll3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXcKZ2dFS0FvSUJBUUN5anRkSWo5azIvRHFrdXliUTZYZkFodVNYeEh0UFZHM2F4bGl4NGJmTk1MVXQ0RGRtVTVDY2hqWisrdXV0bTdTNApvMUp6SWpaalUzdHczcTcxMzl1cnRvZWNvTGdxbWQzM1NoRXlRU0swSVE1Qmdodnp3bTRGWVlWdUdKZnhmQm0xY0FHVzVyNkFNbkF3CmhJRDRYeW9UdDFKUGVjaTZGMU9VRHdaN3oxdUdabFREbEUrY25CMHIxeXhYZW5pVUlwam15MW93Z3Nyb09POUJ1ejRiV0JyUE5pU1UKdkFHU05TVWRuZElhMi9WRCsrK0R2U2RpQU9DdUZCTWw3VUxUMCtpemVYelhBVGZlUUU1QTVEUjhzdHBpcHI4aEJiV0NQS1NHTHI3YQowZGh5TVZDUXRnQ2xMOFlGY0JVOWx4Ti9MS2h1Y0dDamRjWW9MVG56NmtlSDY3THJBZ01CQUFFd0RRWUpLb1pJaHZjTkFRRUxCUUFECmdnRUJBQ2dVRlR5TlQyNXdETXhoTjU1SUJOcFRmbk0zck45bjlUZWsrRUxzdGZjMXdhVlVmblR0VGl1MHlZTy9jMDR6aEttWUphQWsKNzBGS1pKUUtJRU1rbTk1UDVxMkk5MWpJR01PaGJiL21EL3ZCL2lUdHI1U1hYZWFyQ0Z4ZFFKSzVEaUUzZnVQVDQzempDVXVZTHJNVQpGWWFrV0FDRm56aUhZbGtPMWJLdUNwVGtob2JSbFJ4RWI1TW1KL1FVTnV1RTlLV3JUMGw4bVdTeWRGS2ZkckFUMDR2NTJ0TnR4TGV4CkVZa1pCT0xIczAwdDJObzRHK2dkWWJ2NEt4MmlubTllanZHdldTTnlMRHRiZHM0ek83VjRXNVNqZzRITXp2Z3c4c2hvN2FqSEVvd1IKMzRJTVk0bVZYdnlFdmUvR3lsT0EwRDIyRE5UR0NxdmNvV2ZWSTBzSXRVST08L2RzOlg1MDlDZXJ0aWZpY2F0ZT48L2RzOlg1MDlEYXRhPjwvZHM6S2V5SW5mbz48L2RzOlNpZ25hdHVyZT48c2FtbDI6U3ViamVjdD48c2FtbDI6TmFtZUlEIEZvcm1hdD0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6MS4xOm5hbWVpZC1mb3JtYXQ6ZW1haWxBZGRyZXNzIj50ZXN0QHRlc3QudGxkPC9zYW1sMjpOYW1lSUQ+PHNhbWwyOlN1YmplY3RDb25maXJtYXRpb24gTWV0aG9kPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6Y206YmVhcmVyIj48c2FtbDI6U3ViamVjdENvbmZpcm1hdGlvbkRhdGEgSW5SZXNwb25zZVRvPSJhZThkNjc3YmU3ZTRmM2I3NzFmNTY2OWMwODA3NzJkYTI1YzVjYjRiNiIgTm90T25PckFmdGVyPSIyMDE4LTA4LTE2VDA2OjU2OjQ5Ljg2NloiIFJlY2lwaWVudD0iaHR0cHM6Ly9zcHRlc3QuaWFtc2hvd2Nhc2UuY29tL2FjcyIvPjwvc2FtbDI6U3ViamVjdENvbmZpcm1hdGlvbj48L3NhbWwyOlN1YmplY3Q+PHNhbWwyOkNvbmRpdGlvbnMgTm90QmVmb3JlPSIyMDE4LTA4LTE2VDA2OjUzOjQ5Ljg2NloiIE5vdE9uT3JBZnRlcj0iMjAxOC0wOC0xNlQwNjo1Njo0OS44NjZaIj48c2FtbDI6QXVkaWVuY2VSZXN0cmljdGlvbj48c2FtbDI6QXVkaWVuY2U+SUFNU2hvd2Nhc2U8L3NhbWwyOkF1ZGllbmNlPjwvc2FtbDI6QXVkaWVuY2VSZXN0cmljdGlvbj48L3NhbWwyOkNvbmRpdGlvbnM+PHNhbWwyOkF1dGhuU3RhdGVtZW50IEF1dGhuSW5zdGFudD0iMjAxOC0wOC0xNlQwNjo1NDo0OS44NjZaIiBTZXNzaW9uSW5kZXg9Il9lYThiYWM3Yy05YmYyLTQ2MWUtYTQxYi1kN2M5ZDA1NTJkNzMiPjxzYW1sMjpBdXRobkNvbnRleHQ+PHNhbWwyOkF1dGhuQ29udGV4dENsYXNzUmVmPnVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphYzpjbGFzc2VzOlBhc3N3b3JkUHJvdGVjdGVkVHJhbnNwb3J0PC9zYW1sMjpBdXRobkNvbnRleHRDbGFzc1JlZj48L3NhbWwyOkF1dGhuQ29udGV4dD48L3NhbWwyOkF1dGhuU3RhdGVtZW50PjxzYW1sMjpBdHRyaWJ1dGVTdGF0ZW1lbnQ+PHNhbWwyOkF0dHJpYnV0ZSBOYW1lPSJ1aWQiIE5hbWVGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphdHRybmFtZS1mb3JtYXQ6YmFzaWMiPjxzYW1sMjpBdHRyaWJ1dGVWYWx1ZSB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZW1hLWluc3RhbmNlIiB4c2k6dHlwZT0ieHM6c3RyaW5nIj50ZXN0PC9zYW1sMjpBdHRyaWJ1dGVWYWx1ZT48L3NhbWwyOkF0dHJpYnV0ZT48c2FtbDI6QXR0cmlidXRlIE5hbWU9ImRpc3BsYXlOYW1lIiBOYW1lRm9ybWF0PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YXR0cm5hbWUtZm9ybWF0OmJhc2ljIj48c2FtbDI6QXR0cmlidXRlVmFsdWUgeG1sbnM6eHNpPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYS1pbnN0YW5jZSIgeHNpOnR5cGU9InhzOnN0cmluZyI+VGVzdCBVc2VyPC9zYW1sMjpBdHRyaWJ1dGVWYWx1ZT48L3NhbWwyOkF0dHJpYnV0ZT48c2FtbDI6QXR0cmlidXRlIE5hbWU9Im1haWwiIE5hbWVGb3JtYXQ9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphdHRybmFtZS1mb3JtYXQ6YmFzaWMiPjxzYW1sMjpBdHRyaWJ1dGVWYWx1ZSB4bWxuczp4c2k9Imh0dHA6Ly93d3cudzMub3JnLzIwMDEvWE1MU2NoZW1hLWluc3RhbmNlIiB4c2k6dHlwZT0ieHM6c3RyaW5nIj50ZXN0QHRlc3QudGxkPC9zYW1sMjpBdHRyaWJ1dGVWYWx1ZT48L3NhbWwyOkF0dHJpYnV0ZT48L3NhbWwyOkF0dHJpYnV0ZVN0YXRlbWVudD48L3NhbWwyOkFzc2VydGlvbj48L3NhbWwycDpSZXNwb25zZT4=";
 
-  private static Reader getXml(String name) {
+  private static Reader getXml(String name) throws IOException {
     return new InputStreamReader(
         SamlClientTest.class.getResourceAsStream(name), StandardCharsets.UTF_8);
   }
@@ -232,7 +236,236 @@ public class SamlClientTest {
           Base64.encodeBase64String(withDtd.getBytes(StandardCharsets.UTF_8)));
       assertTrue(false);
     } catch (SamlException ex) {
-      assertTrue(ex.getCause().toString().contains("DOCTYPE is disallowed"));
+      assertTrue(ex.getCause().getCause().toString().contains("DOCTYPE is disallowed"));
     }
+  }
+  /**
+   * Decode and validate saml logout invalid response.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutInvalidResponse() throws Throwable {
+    //Retrieve the saml client
+    SamlClient client = getKeyCloakClient(false);
+    //Retrieve the new encoded logout response with error status
+    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.NO_AVAILABLE_IDP);
+    SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse);
+    assertTrue(logoutResponse.isNotValid());
+  }
+
+  /**
+   * Decode and validate saml logout response with invalid signature.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutResponseWithInvalidSignature() throws Throwable {
+    SamlClient client = getKeyCloakClient(true);
+    String encodedSamlLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
+    //Corrupt the signature  (decode => corrupt => encode)
+    String decodedSamlLogoutResponse = decode(encodedSamlLogoutResponse);
+    int index = decodedSamlLogoutResponse.indexOf("<ds:SignatureValue>") + 19;
+    String s = decodedSamlLogoutResponse.substring(index);
+    decodedSamlLogoutResponse = encode(decodedSamlLogoutResponse.subSequence(0, index) + "XXX" + s);
+
+    try {
+      decodeAndValidateSamlLogoutResponse(decodedSamlLogoutResponse);
+      fail("We must have an exception if the signature isn't valid");
+    } catch (SamlException ignore) {
+    }
+  }
+
+  /**
+   * Decode and validate saml logout response with valid signature.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutResponseWithValidSignature() throws Throwable {
+    /*
+     * To avoid annoying code test, the IDP and the SP have the same public key
+     */
+    //Retrieve the saml client
+    SamlClient client = getKeyCloakClient(true);
+    //Retrieve the new encoded logout response
+    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
+    //Decode the encoded logout response to check it is signed
+    String decodedResponse = decode(encodedLogoutResponse);
+    assertTrue(decodedResponse.contains(Signature.DEFAULT_ELEMENT_LOCAL_NAME));
+    //Decode and valid the logout response
+    SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse);
+    assertTrue(logoutResponse.isValid());
+  }
+
+  /**
+   * Decode and validate saml logout request.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutRequest() throws Throwable {
+    String nameId = "gdeclerck";
+    //Retrieve the saml client
+    SamlClient client = getKeyCloakClient(false);
+    //Create a logout request
+    String encodedLogoutRequest = client.getLogoutRequest(nameId);
+    client.decodeAndValidateSamlLogoutRequest(encodedLogoutRequest, nameId);
+  }
+
+  /**
+   * Decode and validate saml logout request invalid name id.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutRequestInvalidNameID() throws Throwable {
+    String nameId = "gdeclerck";
+    //Retrieve the saml client
+    SamlClient client = getKeyCloakClient(false);
+    //Create a logout request
+    String encodedLogoutRequest = client.getLogoutRequest(nameId);
+    try {
+      client.decodeAndValidateSamlLogoutRequest(encodedLogoutRequest, nameId + "XX");
+      fail("We should have an saml exception for invalid nameID");
+    } catch (SamlException ignore) {
+    }
+  }
+
+  /**
+   * Decode and validate saml logout request with invalid signature.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutRequestWithInvalidSignature() throws Throwable {
+    String nameId = "gdeclerck";
+    //Retrieve the saml client
+    SamlClient client = getKeyCloakClient(true);
+
+    //Create a logout request
+    String encodedLogoutRequest = client.getLogoutRequest(nameId);
+    //Invalid the signature
+    encodedLogoutRequest = getCorruptedSignature(encodedLogoutRequest);
+    try {
+      client.decodeAndValidateSamlLogoutRequest(encodedLogoutRequest, nameId);
+      fail("We must have an exception if the signature isn't valid");
+    } catch (SamlException ignore) {
+    }
+  }
+
+  /**
+   * Decode and validate saml logout request with valid signature.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutRequestWithValidSignature() throws Throwable {
+    String nameId = "gdeclerck";
+    //Retrieve the saml client
+    SamlClient client = getKeyCloakClient(true);
+    //Create a logout request
+    String encodedLogoutRequest = client.getLogoutRequest(nameId);
+    client.decodeAndValidateSamlLogoutRequest(encodedLogoutRequest, nameId);
+  }
+  /**
+   * Decode and validate saml logout valid response.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutValidResponse() throws Throwable {
+    //Retrieve the saml client
+    SamlClient client = getKeyCloakClient(false);
+    //Retrieve the new encoded logout response with valid status
+    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
+    SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse);
+    assertTrue(logoutResponse.isValid());
+  }
+  /**
+   * Decode and validate saml logout valid response with signature.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void decodeAndValidateSamlLogoutValidResponseWithSignature() throws Throwable {
+    //Retrieve the saml client
+    SamlClient client = getKeyCloakClient(true);
+    //Retrieve the new encoded logout response with valid status
+    String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
+    SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse);
+    assertTrue(logoutResponse.isValid());
+  }
+
+  /**
+   * Gets saml logout request returns an encoded request.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void getSamlLogoutRequestReturnsAnEncodedRequest() throws Throwable {
+    SamlClient client = getKeyCloakClient(false);
+
+    String decoded =
+        new String(
+            Base64.decodeBase64(client.getLogoutRequest("mlaporte@coveo.com")),
+            StandardCharsets.UTF_8);
+    assertTrue(decoded.contains(">myidentifier<"));
+  }
+
+  /**
+   * Gets saml logout response returns an encoded response.
+   *
+   * @throws Throwable the throwable
+   */
+  @Test
+  public void getSamlLogoutResponseReturnsAnEncodedResponse() throws Throwable {
+    SamlClient client = getKeyCloakClient(false);
+
+    String decoded =
+        new String(
+            Base64.decodeBase64(client.getSamlLogoutResponse(StatusCode.SUCCESS, null)),
+            StandardCharsets.UTF_8);
+    assertTrue(decoded.contains(">myidentifier<"));
+    assertTrue(decoded.contains(StatusCode.SUCCESS));
+  }
+
+  private SamlClient getKeyCloakClient(boolean signingNewDocument)
+      throws IOException, SamlException {
+    SamlClient client =
+        SamlClient.fromMetadata(
+            "myidentifier",
+            "http://some/url",
+            getXml("keycloak.xml"),
+            SamlClient.SamlIdpBinding.POST);
+    if (signingNewDocument) {
+      client.setSPKeys(
+          this.getClass().getResource("saml-public-key.crt").getFile(),
+          this.getClass().getResource("saml-private-key.pk8").getFile());
+    }
+    return client;
+  }
+
+  private String getCorruptedSignature(String encoded) {
+    String decodedSamlLogoutResponse = decode(encoded);
+    int index = decodedSamlLogoutResponse.indexOf("<ds:SignatureValue>") + 19;
+    String s = decodedSamlLogoutResponse.substring(index);
+    return encode(decodedSamlLogoutResponse.subSequence(0, index) + "XXX" + s);
+  }
+
+  private String decode(String encoded) {
+    return new String(Base64.decodeBase64(encoded), StandardCharsets.UTF_8);
+  }
+
+  private String encode(String decoded) {
+    return Base64.encodeBase64String(decoded.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private SamlLogoutResponse decodeAndValidateSamlLogoutResponse(String encodedResponse)
+      throws IOException, SamlException {
+    SamlClient client = getKeyCloakClient(false);
+    SamlLogoutResponse logoutResponse = client.decodeAndValidateSamlLogoutResponse(encodedResponse);
+    assertNotNull(logoutResponse);
+    return logoutResponse;
   }
 }
