@@ -667,7 +667,7 @@ public class SamlClient {
     AuthnRequest request = (AuthnRequest) getBasicSamlRequest(AuthnRequest.DEFAULT_ELEMENT_NAME);
 
     request.setProtocolBinding(
-            "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + this.samlBinding.toString());
+        "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-" + this.samlBinding.toString());
     request.setDestination(identityProviderUrl);
     request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
 
@@ -848,7 +848,7 @@ public class SamlClient {
    * */
   private X509Certificate loadCertificate(String filename) throws SamlException {
     try (FileInputStream fis = new FileInputStream(filename);
-         BufferedInputStream bis = new BufferedInputStream(fis)) {
+        BufferedInputStream bis = new BufferedInputStream(fis)) {
 
       CertificateFactory cf = CertificateFactory.getInstance("X.509");
 
