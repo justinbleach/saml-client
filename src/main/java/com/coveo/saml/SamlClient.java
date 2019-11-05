@@ -1,12 +1,15 @@
 package com.coveo.saml;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.io.Reader;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
@@ -23,6 +26,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -373,7 +378,7 @@ public class SamlClient {
 
     ensureOpenSamlIsInitialized();
 
-    DOMMetadataResolver metadataResolver = createMetadataResolver(metadata);
+    DOMMetadataResolver metadataResolver = createMetadataResolver(skipBom(metadata));
     EntityDescriptor entityDescriptor = getEntityDescriptor(metadataResolver);
 
     IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
@@ -425,6 +430,49 @@ public class SamlClient {
         responseIssuer,
         x509Certificates,
         samlBinding);
+  }
+
+  /**
+   * Wrap a {@link java.io.Reader Reader} to skip a BOM if it is present.
+   * OpenSaml won't accept a metadata file if it starts with a BOM.
+   * @param metadata The metadata with optional BOM
+   * @return A {@link BufferedReader} set to the first real character
+  */
+  private static BufferedReader skipBom(Reader metadata) throws SamlException {
+    BufferedReader bufferedMetadata = new BufferedReader(metadata);
+    try {
+      String bom = "\uFEFF";
+      char[] maybeBom = new char[1];
+      bufferedMetadata.mark(1);
+      bufferedMetadata.read(maybeBom);
+      if (!bom.equals(new String(maybeBom))) {
+        bufferedMetadata.reset();
+      }
+    } catch (IOException e) {
+      throw new SamlException("Couldn't read metadata", e);
+    }
+    return bufferedMetadata;
+  }
+
+  /**
+   * Convert a Base64 String to a Reader then inflates if necessary.
+   * @param encodedResponse a Base64 String with optionally deflated xml
+   * @return A Reader with decoded and inflated xml
+   */
+  private static Reader decodeAndInflate(String encodedResponse) {
+    ByteArrayInputStream afterB64Decode =
+        new ByteArrayInputStream(Base64.decodeBase64(encodedResponse));
+
+    char firstChar = (char) afterB64Decode.read();
+    afterB64Decode.reset();
+    Reader reader;
+    if (firstChar != '<') {
+      InputStream afterInflate = new InflaterInputStream(afterB64Decode, new Inflater(true));
+      reader = new InputStreamReader(afterInflate, StandardCharsets.UTF_8);
+    } else {
+      reader = new InputStreamReader(afterB64Decode, StandardCharsets.UTF_8);
+    }
+    return reader;
   }
 
   private synchronized static void ensureOpenSamlIsInitialized() throws SamlException {
@@ -892,11 +940,9 @@ public class SamlClient {
   }
 
   private SAMLObject parseResponse(String encodedResponse) throws SamlException {
-    String decodedResponse;
-    decodedResponse = new String(Base64.decodeBase64(encodedResponse), StandardCharsets.UTF_8);
-    logger.trace("Validating SAML response: " + decodedResponse);
+    logger.trace("Validating SAML response");
     try {
-      Document responseDocument = domParser.parse(new StringReader(decodedResponse));
+      Document responseDocument = domParser.parse(decodeAndInflate(encodedResponse));
       return (SAMLObject)
           XMLObjectProviderRegistrySupport.getUnmarshallerFactory()
               .getUnmarshaller(responseDocument.getDocumentElement())
