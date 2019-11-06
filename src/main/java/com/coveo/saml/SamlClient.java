@@ -441,6 +441,10 @@ public class SamlClient {
   private static BasicParserPool createDOMParser() throws SamlException {
     BasicParserPool basicParserPool = new BasicParserPool();
     try {
+      Map<String, Boolean> features = new HashMap<>();
+      features.put("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+      features.put("http://apache.org/xml/features/disallow-doctype-decl", true);
+      basicParserPool.setBuilderFeatures(features);
       basicParserPool.initialize();
     } catch (ComponentInitializationException e) {
       throw new SamlException("Failed to create an XML parser");

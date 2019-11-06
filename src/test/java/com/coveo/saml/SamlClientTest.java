@@ -5,10 +5,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -239,6 +242,28 @@ public class SamlClientTest {
       assertTrue(ex.getCause().getCause().toString().contains("DOCTYPE is disallowed"));
     }
   }
+
+  // Test for https://cheatsheetseries.owasp.org/cheatsheets/XML_External_Entity_Prevention_Cheat_Sheet.html
+  @Test
+  public void itIsNotVulnerableToXXEAttacksInMetadata() throws Throwable {
+    String xml = new String(Files.readAllBytes(Paths.get(SamlClientTest.class.getResource("adfs.xml").toURI())), "UTF-8");
+    try {
+      SamlClient.fromMetadata(
+        "myidentifier", "http://some/url", new InputStreamReader(new ByteArrayInputStream(("<!DOCTYPE note SYSTEM \"Note.dtd\">" + xml).getBytes("UTF-8"))), SamlClient.SamlIdpBinding.POST);
+      assertTrue(false);
+    } catch (SamlException ex) {
+      assertTrue(ex.getCause().getCause().toString().contains("DOCTYPE is disallowed"));
+    }
+
+    try {
+      SamlClient.fromMetadata(
+        "myidentifier", "http://some/url", new InputStreamReader(new ByteArrayInputStream(("<!DOCTYPE convert [<!ENTITY % evil SYSTEM 'http://www.perdu.com'>%evil;]>" + xml).getBytes("UTF-8"))), SamlClient.SamlIdpBinding.POST);
+      assertTrue(false);
+    } catch (SamlException ex) {
+      assertTrue(ex.getCause().getCause().toString().contains("DOCTYPE is disallowed"));
+    }
+  }
+
   /**
    * Decode and validate saml logout invalid response.
    *
