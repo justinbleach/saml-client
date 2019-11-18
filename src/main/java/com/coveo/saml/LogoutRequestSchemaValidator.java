@@ -19,38 +19,36 @@ package com.coveo.saml;
 
 import java.util.Objects;
 
-import javax.xml.bind.ValidationException;
-
 import org.apache.commons.lang3.StringUtils;
 import org.opensaml.saml.common.SAMLVersion;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 
 public class LogoutRequestSchemaValidator {
-  public void validate(LogoutRequest request) throws ValidationException {
+  public void validate(LogoutRequest request) throws SamlException {
     validateID(request);
     validateVersion(request);
     validateIssueInstant(request);
     validateIdentifiers(request);
   }
 
-  private void validateID(LogoutRequest request) throws ValidationException {
+  private void validateID(LogoutRequest request) throws SamlException {
     if (StringUtils.isEmpty(request.getID())) {
-      throw new ValidationException("ID attribute must not be empty");
+      throw new SamlException("ID attribute must not be empty");
     }
   }
 
-  private void validateVersion(LogoutRequest request) throws ValidationException {
+  private void validateVersion(LogoutRequest request) throws SamlException {
     if (request.getVersion() == null) {
-      throw new ValidationException("Version attribute must not be null");
+      throw new SamlException("Version attribute must not be null");
     }
     if (!Objects.equals(request.getVersion().toString(), SAMLVersion.VERSION_20.toString())) {
-      throw new ValidationException("Wrong SAML Version");
+      throw new SamlException("Wrong SAML Version");
     }
   }
 
-  private void validateIssueInstant(LogoutRequest request) throws ValidationException {
+  private void validateIssueInstant(LogoutRequest request) throws SamlException {
     if (request.getIssueInstant() == null) {
-      throw new ValidationException("IssueInstant attribute must not be null");
+      throw new SamlException("IssueInstant attribute must not be null");
     }
   }
 
@@ -58,9 +56,9 @@ public class LogoutRequestSchemaValidator {
    * Validate the Identifier child types (BaseID, NameID, EncryptedID).
    *
    * @param request the request being processed
-   * @throws ValidationException thrown if the identifiers present are not valid
+   * @throws SamlException thrown if the identifiers present are not valid
    */
-  protected void validateIdentifiers(LogoutRequest request) throws ValidationException {
+  protected void validateIdentifiers(LogoutRequest request) throws SamlException {
     int idCount = 0;
 
     if (request.getBaseID() != null) {
@@ -74,7 +72,7 @@ public class LogoutRequestSchemaValidator {
     }
 
     if (idCount != 1) {
-      throw new ValidationException(
+      throw new SamlException(
           "LogoutRequest must contain exactly one of: BaseID, NameID, EncryptedID");
     }
   }

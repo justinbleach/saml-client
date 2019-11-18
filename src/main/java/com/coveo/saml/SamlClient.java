@@ -757,6 +757,7 @@ public class SamlClient {
    * Processes a POST containing the SAML logout request.
    *
    * @param request the {@link HttpServletRequest}.
+   * @param nameID the user to log out.
    * @throws SamlException thrown is an unexpected error occurs.
    */
   public void processLogoutRequestPostFromIdentityProvider(
@@ -781,6 +782,7 @@ public class SamlClient {
    *
    * @param response   The {@link HttpServletResponse}.
    * @param relayState Optional relay state that will be passed along.
+   * @param nameId the user to log out.
    * @throws IOException   thrown if an IO error occurs.
    * @throws SamlException thrown is an unexpected error occurs.
    */

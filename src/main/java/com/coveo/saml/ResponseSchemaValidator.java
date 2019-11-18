@@ -19,44 +19,42 @@ package com.coveo.saml;
 
 import java.util.Objects;
 
-import javax.xml.bind.ValidationException;
-
 import org.apache.commons.lang3.StringUtils;
 import org.opensaml.saml.common.SAMLVersion;
 import org.opensaml.saml.saml2.core.StatusResponseType;
 
 public class ResponseSchemaValidator {
-  public void validate(StatusResponseType response) throws ValidationException {
+  public void validate(StatusResponseType response) throws SamlException {
     validateStatus(response);
     validateID(response);
     validateVersion(response);
     validateIssueInstant(response);
   }
 
-  private void validateStatus(StatusResponseType response) throws ValidationException {
+  private void validateStatus(StatusResponseType response) throws SamlException {
     if (response.getStatus() == null) {
-      throw new ValidationException("Status is required");
+      throw new SamlException("Status is required");
     }
   }
 
-  private void validateID(StatusResponseType response) throws ValidationException {
+  private void validateID(StatusResponseType response) throws SamlException {
     if (StringUtils.isEmpty(response.getID())) {
-      throw new ValidationException("ID attribute must not be empty");
+      throw new SamlException("ID attribute must not be empty");
     }
   }
 
-  private void validateVersion(StatusResponseType response) throws ValidationException {
+  private void validateVersion(StatusResponseType response) throws SamlException {
     if (response.getVersion() == null) {
-      throw new ValidationException("Version attribute must not be null");
+      throw new SamlException("Version attribute must not be null");
     }
     if (!Objects.equals(response.getVersion().toString(), SAMLVersion.VERSION_20.toString())) {
-      throw new ValidationException("Wrong SAML Version");
+      throw new SamlException("Wrong SAML Version");
     }
   }
 
-  private void validateIssueInstant(StatusResponseType response) throws ValidationException {
+  private void validateIssueInstant(StatusResponseType response) throws SamlException {
     if (response.getIssueInstant() == null) {
-      throw new ValidationException("IssueInstant attribute must not be null");
+      throw new SamlException("IssueInstant attribute must not be null");
     }
   }
 }
