@@ -8,6 +8,7 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
@@ -38,9 +39,13 @@ public class SamlClientTest {
   private static final String A_DEFLATED_AND_ENCODED_LOGOUT_RESPONSE =
       "fZBRS8MwFEbfBf9DyXvWJl2zNbQdogiF+WLnHnyL6e0ItEnpTUT99c7NsSGyxwsf5xxusfoY+ugdJjTOloTNEhKB1a41dleSl80jXZJVdXtToBp6Psq127ngnwFHZxGi+qEkX7CAJMmEoMBFSudd90bzhVhSLTjL2JynrUpJVCMGqC16ZX1JeMJyyhLK8w3LJE9lls14Ll5JtD218J+WfZ1FeZSXJExWOoUGpVUDoPRaNndPa7mfynFy3mnXk+rYKg/C6ZJwHaAQYfJ7NamGT9OC9aYzMBXxJa46PaLxygf8c967FqKt6gNcV+FhLZugNSCSuPqVnLHxv/+uvgE=";
 
-  private static Reader getXml(String name) throws IOException {
+  private static Reader getXml(String name) {
+    return getXml(name, StandardCharsets.UTF_8);
+  }
+
+  private static Reader getXml(String name, Charset charset) {
     return new InputStreamReader(
-        SamlClientTest.class.getResourceAsStream(name), StandardCharsets.UTF_8);
+        SamlClientTest.class.getResourceAsStream(name), charset);
   }
 
   @Test
@@ -59,6 +64,12 @@ public class SamlClientTest {
   public void metadataXMLFromAzureCanBeLoaded() throws Throwable {
     SamlClient.fromMetadata(
         "myidentifier", "http://some/url", getXml("azure.xml"), SamlClient.SamlIdpBinding.POST);
+  }
+
+  @Test
+  public void metadataXMLFromAzureInUTF16CanBeLoaded() throws Throwable {
+    SamlClient.fromMetadata(
+        "myidentifier", "http://some/url", getXml("azure-utf-16.xml", StandardCharsets.UTF_16), SamlClient.SamlIdpBinding.POST);
   }
 
   @Test

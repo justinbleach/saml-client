@@ -34,6 +34,8 @@ import javax.servlet.http.HttpServletResponse;
 import javax.xml.namespace.QName;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.BOMInputStream;
 import org.joda.time.DateTime;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
@@ -436,22 +438,17 @@ public class SamlClient {
    * Wrap a {@link java.io.Reader Reader} to skip a BOM if it is present.
    * OpenSaml won't accept a metadata file if it starts with a BOM.
    * @param metadata The metadata with optional BOM
-   * @return A {@link BufferedReader} set to the first real character
-  */
-  private static BufferedReader skipBom(Reader metadata) throws SamlException {
-    BufferedReader bufferedMetadata = new BufferedReader(metadata);
+   * @return A {@link Reader} which will never return a BOM
+   */
+  private static InputStream skipBom(Reader metadata) throws SamlException {
     try {
-      String bom = "\uFEFF";
-      char[] maybeBom = new char[1];
-      bufferedMetadata.mark(1);
-      bufferedMetadata.read(maybeBom);
-      if (!bom.equals(new String(maybeBom))) {
-        bufferedMetadata.reset();
-      }
+      InputStream metadataInputStream;
+      metadataInputStream = IOUtils.toInputStream(IOUtils.toString(metadata), StandardCharsets.UTF_8);
+
+      return new BOMInputStream(metadataInputStream, false);
     } catch (IOException e) {
       throw new SamlException("Couldn't read metadata", e);
     }
-    return bufferedMetadata;
   }
 
   /**
@@ -497,7 +494,7 @@ public class SamlClient {
     return basicParserPool;
   }
 
-  private static DOMMetadataResolver createMetadataResolver(Reader metadata) throws SamlException {
+  private static DOMMetadataResolver createMetadataResolver(InputStream metadata) throws SamlException {
     try {
       BasicParserPool parser = createDOMParser();
       Document metadataDocument = parser.parse(metadata);
