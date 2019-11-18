@@ -2,8 +2,6 @@ package com.coveo.saml;
 
 import java.util.List;
 
-import javax.xml.bind.ValidationException;
-
 import org.joda.time.DateTime;
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
@@ -35,7 +33,7 @@ class ValidatorUtils {
       throws SamlException {
     try {
       new ResponseSchemaValidator().validate(response);
-    } catch (ValidationException e) {
+    } catch (SamlException e) {
       throw new SamlException("The response schema validation failed", e);
     }
 
@@ -261,7 +259,7 @@ class ValidatorUtils {
       throws SamlException {
     try {
       new ResponseSchemaValidator().validate(response);
-    } catch (ValidationException ex) {
+    } catch (SamlException ex) {
       throw new SamlException("The response schema validation failed", ex);
     }
     validateIssuer(response, responseIssuer);
@@ -278,7 +276,7 @@ class ValidatorUtils {
       LogoutRequest request, String requestIssuer, String nameID) throws SamlException {
     try {
       new LogoutRequestSchemaValidator().validate(request);
-    } catch (ValidationException ex) {
+    } catch (SamlException ex) {
       throw new SamlException("The request schema validation failed", ex);
     }
     validateIssuer(request, requestIssuer);
