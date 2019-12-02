@@ -81,12 +81,17 @@
       <artifactId>opensaml-saml-impl</artifactId>
       <version>${opensaml.version}</version>
     </dependency>
-    <!-- normally transitive via opensaml, bumped here
-         to address vulnerabilities -->
     <dependency>
+      <!-- transitive via opensaml, bumped here to address vulnerabilities -->
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcprov-jdk15on</artifactId>
       <version>1.61</version>
+    </dependency>
+    <dependency>
+      <!-- transitive via opensaml, bumped here from 3.2.1 to 3.2.2 to address vulnerabilities. -->
+      <groupId>commons-collections</groupId>
+      <artifactId>commons-collections</artifactId>
+      <version>3.2.2</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
