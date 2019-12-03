@@ -44,8 +44,7 @@ public class SamlClientTest {
   }
 
   private static Reader getXml(String name, Charset charset) {
-    return new InputStreamReader(
-        SamlClientTest.class.getResourceAsStream(name), charset);
+    return new InputStreamReader(SamlClientTest.class.getResourceAsStream(name), charset);
   }
 
   @Test
@@ -69,7 +68,10 @@ public class SamlClientTest {
   @Test
   public void metadataXMLFromAzureInUTF16CanBeLoaded() throws Throwable {
     SamlClient.fromMetadata(
-        "myidentifier", "http://some/url", getXml("azure-utf-16.xml", StandardCharsets.UTF_16), SamlClient.SamlIdpBinding.POST);
+        "myidentifier",
+        "http://some/url",
+        getXml("azure-utf-16.xml", StandardCharsets.UTF_16),
+        SamlClient.SamlIdpBinding.POST);
   }
 
   @Test
@@ -134,7 +136,8 @@ public class SamlClientTest {
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(ASSERTION_DATE);
-    client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE_WITH_INVALID_RESPONSE_SIGNATURE, "POST");
+    client.decodeAndValidateSamlResponse(
+        AN_ENCODED_RESPONSE_WITH_INVALID_RESPONSE_SIGNATURE, "POST");
   }
 
   @Test(expected = SamlException.class)
@@ -143,7 +146,8 @@ public class SamlClientTest {
         SamlClient.fromMetadata(
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     client.setDateTimeNow(ASSERTION_DATE);
-    client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE_WITH_INVALID_ASSERTION_SIGNATURE, "POST");
+    client.decodeAndValidateSamlResponse(
+        AN_ENCODED_RESPONSE_WITH_INVALID_ASSERTION_SIGNATURE, "POST");
   }
 
   @Test(expected = SamlException.class)
@@ -269,7 +273,8 @@ public class SamlClientTest {
     SamlClient client = getKeyCloakClient(false);
     //Retrieve the new encoded logout response with error status
     String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.NO_AVAILABLE_IDP);
-    SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse, "POST");
+    SamlLogoutResponse logoutResponse =
+        decodeAndValidateSamlLogoutResponse(encodedLogoutResponse, "POST");
     assertTrue(logoutResponse.isNotValid());
   }
 
@@ -313,7 +318,8 @@ public class SamlClientTest {
     String decodedResponse = decode(encodedLogoutResponse);
     assertTrue(decodedResponse.contains(Signature.DEFAULT_ELEMENT_LOCAL_NAME));
     //Decode and valid the logout response
-    SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse, "POST");
+    SamlLogoutResponse logoutResponse =
+        decodeAndValidateSamlLogoutResponse(encodedLogoutResponse, "POST");
     assertTrue(logoutResponse.isValid());
   }
 
@@ -398,7 +404,8 @@ public class SamlClientTest {
     SamlClient client = getKeyCloakClient(false);
     //Retrieve the new encoded logout response with valid status
     String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
-    SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse, "POST");
+    SamlLogoutResponse logoutResponse =
+        decodeAndValidateSamlLogoutResponse(encodedLogoutResponse, "POST");
     assertTrue(logoutResponse.isValid());
   }
 
@@ -420,7 +427,8 @@ public class SamlClientTest {
     SamlClient client = getKeyCloakClient(true);
     //Retrieve the new encoded logout response with valid status
     String encodedLogoutResponse = client.getSamlLogoutResponse(StatusCode.SUCCESS);
-    SamlLogoutResponse logoutResponse = decodeAndValidateSamlLogoutResponse(encodedLogoutResponse, "POST");
+    SamlLogoutResponse logoutResponse =
+        decodeAndValidateSamlLogoutResponse(encodedLogoutResponse, "POST");
     assertTrue(logoutResponse.isValid());
   }
 
@@ -488,10 +496,11 @@ public class SamlClientTest {
     return Base64.encodeBase64String(decoded.getBytes(StandardCharsets.UTF_8));
   }
 
-  private SamlLogoutResponse decodeAndValidateSamlLogoutResponse(String encodedResponse, String method)
-      throws IOException, SamlException {
+  private SamlLogoutResponse decodeAndValidateSamlLogoutResponse(
+      String encodedResponse, String method) throws IOException, SamlException {
     SamlClient client = getKeyCloakClient(false);
-    SamlLogoutResponse logoutResponse = client.decodeAndValidateSamlLogoutResponse(encodedResponse, method);
+    SamlLogoutResponse logoutResponse =
+        client.decodeAndValidateSamlLogoutResponse(encodedResponse, method);
     assertNotNull(logoutResponse);
     return logoutResponse;
   }

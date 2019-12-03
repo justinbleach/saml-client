@@ -266,7 +266,8 @@ public class SamlClient {
    * @return An {@link SamlResponse} object containing information decoded from the SAML response.
    * @throws SamlException if the signature is invalid, or if any other error occurs.
    */
-  public SamlResponse decodeAndValidateSamlResponse(String encodedResponse, String method) throws SamlException {
+  public SamlResponse decodeAndValidateSamlResponse(String encodedResponse, String method)
+      throws SamlException {
     //Decode and parse the response
     Response response = (Response) parseResponse(encodedResponse, method);
 
@@ -444,7 +445,8 @@ public class SamlClient {
   private static InputStream skipBom(Reader metadata) throws SamlException {
     try {
       InputStream metadataInputStream;
-      metadataInputStream = IOUtils.toInputStream(IOUtils.toString(metadata), StandardCharsets.UTF_8);
+      metadataInputStream =
+          IOUtils.toInputStream(IOUtils.toString(metadata), StandardCharsets.UTF_8);
 
       return new BOMInputStream(metadataInputStream, false);
     } catch (IOException e) {
@@ -493,7 +495,8 @@ public class SamlClient {
     return basicParserPool;
   }
 
-  private static DOMMetadataResolver createMetadataResolver(InputStream metadata) throws SamlException {
+  private static DOMMetadataResolver createMetadataResolver(InputStream metadata)
+      throws SamlException {
     try {
       BasicParserPool parser = createDOMParser();
       Document metadataDocument = parser.parse(metadata);
@@ -599,8 +602,8 @@ public class SamlClient {
    * @return An {@link SamlResponse} object containing information decoded from the SAML response.
    * @throws SamlException if the signature is invalid, or if any other error occurs.
    */
-  public SamlLogoutResponse decodeAndValidateSamlLogoutResponse(String encodedResponse, String method)
-      throws SamlException {
+  public SamlLogoutResponse decodeAndValidateSamlLogoutResponse(
+      String encodedResponse, String method) throws SamlException {
     LogoutResponse logoutResponse = (LogoutResponse) parseResponse(encodedResponse, method);
 
     ValidatorUtils.validate(logoutResponse, responseIssuer, credentials);
@@ -616,8 +619,8 @@ public class SamlClient {
    * @param method The HTTP method used by the request
    * @throws SamlException if the signature is invalid, or if any other error occurs.
    */
-  public void decodeAndValidateSamlLogoutRequest(String encodedRequest, String nameID, String method)
-      throws SamlException {
+  public void decodeAndValidateSamlLogoutRequest(
+      String encodedRequest, String nameID, String method) throws SamlException {
     LogoutRequest logoutRequest = (LogoutRequest) parseResponse(encodedRequest, method);
 
     ValidatorUtils.validate(logoutRequest, responseIssuer, credentials, nameID);
