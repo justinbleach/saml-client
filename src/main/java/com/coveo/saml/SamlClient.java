@@ -1,12 +1,14 @@
 package com.coveo.saml;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.io.Reader;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
@@ -23,12 +25,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.namespace.QName;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.BOMInputStream;
 import org.joda.time.DateTime;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
@@ -255,12 +261,14 @@ public class SamlClient {
    * Decodes and validates an SAML response returned by an identity provider.
    *
    * @param encodedResponse the encoded response returned by the identity provider.
+   * @param method The HTTP method used by the request
+   *
    * @return An {@link SamlResponse} object containing information decoded from the SAML response.
    * @throws SamlException if the signature is invalid, or if any other error occurs.
    */
-  public SamlResponse decodeAndValidateSamlResponse(String encodedResponse) throws SamlException {
+  public SamlResponse decodeAndValidateSamlResponse(String encodedResponse, String method) throws SamlException {
     //Decode and parse the response
-    Response response = (Response) parseResponse(encodedResponse);
+    Response response = (Response) parseResponse(encodedResponse, method);
 
     // Decode and add the assertion
     try {
@@ -304,7 +312,7 @@ public class SamlClient {
   public SamlResponse processPostFromIdentityProvider(HttpServletRequest request)
       throws SamlException {
     String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
-    return decodeAndValidateSamlResponse(encodedResponse);
+    return decodeAndValidateSamlResponse(encodedResponse, request.getMethod());
   }
 
   /**
@@ -373,7 +381,7 @@ public class SamlClient {
 
     ensureOpenSamlIsInitialized();
 
-    DOMMetadataResolver metadataResolver = createMetadataResolver(metadata);
+    DOMMetadataResolver metadataResolver = createMetadataResolver(skipBom(metadata));
     EntityDescriptor entityDescriptor = getEntityDescriptor(metadataResolver);
 
     IDPSSODescriptor idpSsoDescriptor = getIDPSSODescriptor(entityDescriptor);
@@ -427,6 +435,42 @@ public class SamlClient {
         samlBinding);
   }
 
+  /**
+   * Wrap a {@link java.io.Reader Reader} to skip a BOM if it is present.
+   * OpenSaml won't accept a metadata file if it starts with a BOM.
+   * @param metadata The metadata with optional BOM
+   * @return A {@link Reader} which will never return a BOM
+   */
+  private static InputStream skipBom(Reader metadata) throws SamlException {
+    try {
+      InputStream metadataInputStream;
+      metadataInputStream = IOUtils.toInputStream(IOUtils.toString(metadata), StandardCharsets.UTF_8);
+
+      return new BOMInputStream(metadataInputStream, false);
+    } catch (IOException e) {
+      throw new SamlException("Couldn't read metadata", e);
+    }
+  }
+
+  /**
+   * Decode Base64, then decode if needed
+   * @param encodedResponse a Base64 String with optionally deflated xml
+   * @param method The HTTP method used by the request
+   * @return A Reader with decoded and inflated xml
+   */
+  private static Reader decodeAndInflate(String encodedResponse, String method) {
+    ByteArrayInputStream afterB64Decode =
+        new ByteArrayInputStream(Base64.decodeBase64(encodedResponse));
+
+    if ("GET".equals(method)) {
+      // If the request was a GET request, the value will have been deflated
+      InputStream afterInflate = new InflaterInputStream(afterB64Decode, new Inflater(true));
+      return new InputStreamReader(afterInflate, StandardCharsets.UTF_8);
+    } else {
+      return new InputStreamReader(afterB64Decode, StandardCharsets.UTF_8);
+    }
+  }
+
   private synchronized static void ensureOpenSamlIsInitialized() throws SamlException {
     if (!initializedOpenSaml) {
       try {
@@ -449,7 +493,7 @@ public class SamlClient {
     return basicParserPool;
   }
 
-  private static DOMMetadataResolver createMetadataResolver(Reader metadata) throws SamlException {
+  private static DOMMetadataResolver createMetadataResolver(InputStream metadata) throws SamlException {
     try {
       BasicParserPool parser = createDOMParser();
       Document metadataDocument = parser.parse(metadata);
@@ -551,12 +595,13 @@ public class SamlClient {
    * Decodes and validates an SAML response returned by an identity provider.
    *
    * @param encodedResponse the encoded response returned by the identity provider.
+   * @param method The HTTP method used by the request
    * @return An {@link SamlResponse} object containing information decoded from the SAML response.
    * @throws SamlException if the signature is invalid, or if any other error occurs.
    */
-  public SamlLogoutResponse decodeAndValidateSamlLogoutResponse(String encodedResponse)
+  public SamlLogoutResponse decodeAndValidateSamlLogoutResponse(String encodedResponse, String method)
       throws SamlException {
-    LogoutResponse logoutResponse = (LogoutResponse) parseResponse(encodedResponse);
+    LogoutResponse logoutResponse = (LogoutResponse) parseResponse(encodedResponse, method);
 
     ValidatorUtils.validate(logoutResponse, responseIssuer, credentials);
 
@@ -568,11 +613,12 @@ public class SamlClient {
    *
    * @param encodedRequest the encoded request send by the identity provider.
    * @param nameID The user to logout
+   * @param method The HTTP method used by the request
    * @throws SamlException if the signature is invalid, or if any other error occurs.
    */
-  public void decodeAndValidateSamlLogoutRequest(String encodedRequest, String nameID)
+  public void decodeAndValidateSamlLogoutRequest(String encodedRequest, String nameID, String method)
       throws SamlException {
-    LogoutRequest logoutRequest = (LogoutRequest) parseResponse(encodedRequest);
+    LogoutRequest logoutRequest = (LogoutRequest) parseResponse(encodedRequest, method);
 
     ValidatorUtils.validate(logoutRequest, responseIssuer, credentials, nameID);
   }
@@ -763,7 +809,7 @@ public class SamlClient {
   public void processLogoutRequestPostFromIdentityProvider(
       HttpServletRequest request, String nameID) throws SamlException {
     String encodedResponse = request.getParameter(HTTP_REQ_SAML_PARAM);
-    decodeAndValidateSamlLogoutRequest(encodedResponse, nameID);
+    decodeAndValidateSamlLogoutRequest(encodedResponse, nameID, request.getMethod());
   }
   /**
    * Processes a POST containing the SAML response.
@@ -775,7 +821,7 @@ public class SamlClient {
   public SamlLogoutResponse processPostLogoutResponseFromIdentityProvider(
       HttpServletRequest request) throws SamlException {
     String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
-    return decodeAndValidateSamlLogoutResponse(encodedResponse);
+    return decodeAndValidateSamlLogoutResponse(encodedResponse, request.getMethod());
   }
   /**
    * Redirects an {@link HttpServletResponse} to the configured identity provider.
@@ -893,12 +939,10 @@ public class SamlClient {
     return stringWriter;
   }
 
-  private SAMLObject parseResponse(String encodedResponse) throws SamlException {
-    String decodedResponse;
-    decodedResponse = new String(Base64.decodeBase64(encodedResponse), StandardCharsets.UTF_8);
-    logger.trace("Validating SAML response: " + decodedResponse);
+  private SAMLObject parseResponse(String encodedResponse, String method) throws SamlException {
+    logger.trace("Validating SAML response " + encodedResponse);
     try {
-      Document responseDocument = domParser.parse(new StringReader(decodedResponse));
+      Document responseDocument = domParser.parse(decodeAndInflate(encodedResponse, method));
       return (SAMLObject)
           XMLObjectProviderRegistrySupport.getUnmarshallerFactory()
               .getUnmarshaller(responseDocument.getDocumentElement())
