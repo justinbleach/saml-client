@@ -4,6 +4,8 @@
 
 # Dead Simple SAML 2.0 Client
 
+This is coveooss/saml-client with some crude alterations to allow more flexibility for setting keys where they aren't held in files. 
+
 This library implements a very simple SAML 2.0 client that allows retrieving an authenticated identity from a compliant identity provider, using the HTTP POST binding.
 
 It is based on the OpenSAML library, and only provides the necessary glue code to make it work in a basic scenario. This is by no means a complete implementation supporting all the nitty gritty SAML details, but it does perform the basic task of generating requests and validating responses. It's useful if you need to authenticate with SAML but don't want to bring in an uber large framework such as Spring Security.
