@@ -2,6 +2,7 @@ package com.coveo.saml;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -642,6 +643,22 @@ public class SamlClient {
   }
 
   /**
+   * Set service provider keys from InputStreams.
+   *
+   * @param publicKey  the public key
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  public void setSPKeys(InputStream publicKey, InputStream privateKey) throws SamlException {
+    if (publicKey == null || privateKey == null) {
+      throw new SamlException("No credentials provided");
+    }
+    PrivateKey pk = loadPrivateKey(privateKey);
+    X509Certificate cert = loadCertificate(publicKey);
+    spCredential = new BasicX509Credential(cert, pk);
+  }
+
+  /**
    * Gets attributes from the IDP Response
    *
    * @param response the response
@@ -913,6 +930,22 @@ public class SamlClient {
   }
 
   /**
+   * Load an X.509 certificate
+   * @param bis An input stream providing the bytes of the key.
+   * */
+  private X509Certificate loadCertificate(InputStream bis) throws SamlException {
+    try {
+
+      CertificateFactory cf = CertificateFactory.getInstance("X.509");
+
+      return (X509Certificate) cf.generateCertificate(bis);
+
+    } catch (Exception e) {
+      throw new SamlException("Couldn't load public key", e);
+    }
+  }
+
+  /**
    * Load a PKCS8 key
    * @param filename The path of the key
    * */
@@ -927,6 +960,40 @@ public class SamlClient {
 
     } catch (FileNotFoundException e) {
       throw new SamlException("Private key file doesn't exist", e);
+    } catch (Exception e) {
+      throw new SamlException("Couldn't load private key", e);
+    }
+  }
+
+  /**
+   * Load a PKCS8 key
+   * @param bis An input stream providing the bytes of the key.
+   * */
+  private PrivateKey loadPrivateKey(InputStream bis) throws SamlException {
+    try //(RandomAccessFile raf = new RandomAccessFile(filename, "r"))
+    {
+
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+      int totalBytes = 0;
+      byte[] onekay = new byte[1024];
+      int bytesRead = 0;
+      while (true) {
+        bytesRead = bis.read(onekay);
+
+        if (bytesRead == -1) break;
+
+        if (bytesRead > 0) baos.write(onekay, 0, bytesRead);
+      }
+      bis.close();
+      baos.flush();
+      baos.close();
+
+      PKCS8EncodedKeySpec kspec = new PKCS8EncodedKeySpec(baos.toByteArray());
+      KeyFactory kf = KeyFactory.getInstance("RSA");
+
+      return kf.generatePrivate(kspec);
+
     } catch (Exception e) {
       throw new SamlException("Couldn't load private key", e);
     }
