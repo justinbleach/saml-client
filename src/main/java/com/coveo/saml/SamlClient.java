@@ -900,6 +900,9 @@ public class SamlClient {
               null,
               new StaticKeyInfoCredentialResolver(spCredential),
               new InlineEncryptedKeyResolver());
+
+      decrypter.setRootInNewDocument(true);
+
       // Decrypt the assertion.
       Assertion decryptedAssertion = decrypter.decrypt(encryptedAssertion);
       // Add the assertion
