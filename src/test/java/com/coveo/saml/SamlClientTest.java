@@ -252,7 +252,9 @@ public class SamlClientTest {
     SamlClient client = getKeyCloakClient(true);
     client.setDateTimeNow(ASSERTION_DATE);
 
-    SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE_WITH_SIGNED_AND_ENCRYPTED_ASSERTION, "POST");
+    SamlResponse response =
+        client.decodeAndValidateSamlResponse(
+            AN_ENCODED_RESPONSE_WITH_SIGNED_AND_ENCRYPTED_ASSERTION, "POST");
     assertEquals("mlaporte@coveo.com", response.getNameID());
   }
 

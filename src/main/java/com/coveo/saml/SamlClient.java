@@ -640,21 +640,21 @@ public class SamlClient {
     X509Certificate cert = loadCertificate(publicKey);
     spCredential = new BasicX509Credential(cert, pk);
   }
-  
+
   /**
-  * Set service provider keys.
-  *
-  * @param certificate the certificate
-  * @param privateKey the private key
-  * @throws SamlException if publicKey and privateKey don't form a valid credential
-  */
+   * Set service provider keys.
+   *
+   * @param certificate the certificate
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
   public void setSPKeys(X509Certificate certificate, PrivateKey privateKey) throws SamlException {
     if (certificate == null || privateKey == null) {
-        throw new SamlException("No credentials provided");
+      throw new SamlException("No credentials provided");
     }
     spCredential = new BasicX509Credential(certificate, privateKey);
   }
-  
+
   /**
    * Gets attributes from the IDP Response
    *
