@@ -14,6 +14,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Collections;
 
 import org.apache.commons.codec.binary.Base64;
 import org.joda.time.DateTime;
@@ -255,6 +256,26 @@ public class SamlClientTest {
     SamlResponse response =
         client.decodeAndValidateSamlResponse(
             AN_ENCODED_RESPONSE_WITH_SIGNED_AND_ENCRYPTED_ASSERTION, "POST");
+    assertEquals("mlaporte@coveo.com", response.getNameID());
+  }
+
+  @Test
+  public void decodeAndValidateSamlResponseWithEncryptedSignedAssertionWithAlternateKeys() throws Throwable {
+    SamlClient client = getKeyCloakClient(false);
+    client.setDateTimeNow(ASSERTION_DATE);
+
+    client.setSPKeys(
+      this.getClass().getResource("saml-alt-public-key.crt").getFile(),
+      this.getClass().getResource("saml-alt-private-key.pk8").getFile());
+
+    client.addAdditionalSPKey(
+      this.getClass().getResource("saml-public-key.crt").getFile(),
+      this.getClass().getResource("saml-private-key.pk8").getFile()
+    );
+
+    SamlResponse response =
+            client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE_WITH_SIGNED_AND_ENCRYPTED_ASSERTION, "POST");
+
     assertEquals("mlaporte@coveo.com", response.getNameID());
   }
 

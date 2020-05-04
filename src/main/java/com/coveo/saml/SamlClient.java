@@ -77,7 +77,10 @@ import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureSigningParameters;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
+import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
+import org.opensaml.xmlsec.keyinfo.impl.ChainingKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.impl.CollectionKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.X509KeyInfoGeneratorFactory;
 import org.opensaml.xmlsec.signature.SignableXMLObject;
@@ -119,6 +122,7 @@ public class SamlClient {
   private long notBeforeSkew = 0L;
   private SamlIdpBinding samlBinding;
   private BasicX509Credential spCredential;
+  private List<Credential> additionalSpCredentials = new ArrayList<>();
 
   /**
    * Returns the url where SAML requests should be posted.
@@ -625,6 +629,7 @@ public class SamlClient {
 
     ValidatorUtils.validate(logoutRequest, responseIssuer, credentials, nameID);
   }
+
   /**
    * Set service provider keys.
    *
@@ -633,12 +638,23 @@ public class SamlClient {
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
   public void setSPKeys(String publicKey, String privateKey) throws SamlException {
+    this.spCredential = generateBasicX509Credential(publicKey, privateKey);
+  }
+
+  /**
+   * generate an X509Credential from the provided key and cert.
+   *
+   * @param publicKey  the public key
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey) throws SamlException {
     if (publicKey == null || privateKey == null) {
       throw new SamlException("No credentials provided");
     }
     PrivateKey pk = loadPrivateKey(privateKey);
     X509Certificate cert = loadCertificate(publicKey);
-    spCredential = new BasicX509Credential(cert, pk);
+    return new BasicX509Credential(cert, pk);
   }
 
   /**
@@ -653,6 +669,35 @@ public class SamlClient {
       throw new SamlException("No credentials provided");
     }
     spCredential = new BasicX509Credential(certificate, privateKey);
+  }
+
+  /**
+   * Add an additional service provider certificate/key pair for decryption.
+   *
+   * @param publicKey  the public key
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  public void addAdditionalSPKey(String publicKey, String privateKey) throws SamlException {
+    additionalSpCredentials.add(generateBasicX509Credential(publicKey, privateKey));
+  }
+
+  /**
+   * Add an additional service provider certificate/key pair for decryption.
+   *
+   * @param certificate the certificate
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey) throws SamlException {
+    additionalSpCredentials.add(new BasicX509Credential(certificate, privateKey));
+  }
+
+  /**
+   * Remove all additional service provider decryption certificate/key pairs.
+   */
+  public void clearAdditionalSPKeys() throws SamlException {
+    additionalSpCredentials = new ArrayList<>();
   }
 
   /**
@@ -895,10 +940,20 @@ public class SamlClient {
     }
     for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {
       // Create a decrypter.
+      List<KeyInfoCredentialResolver> resolverChain = new ArrayList<>();
+
+      if(spCredential != null) {
+        resolverChain.add(new StaticKeyInfoCredentialResolver(spCredential));
+      }
+
+      if(!additionalSpCredentials.isEmpty()) {
+        resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
+      }
+
       Decrypter decrypter =
           new Decrypter(
               null,
-              new StaticKeyInfoCredentialResolver(spCredential),
+              new ChainingKeyInfoCredentialResolver(resolverChain),
               new InlineEncryptedKeyResolver());
 
       decrypter.setRootInNewDocument(true);
