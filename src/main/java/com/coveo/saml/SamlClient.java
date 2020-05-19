@@ -643,19 +643,17 @@ public class SamlClient {
   }
 
   /**
-   * Set service provider keys from InputStreams.
+   * Set service provider keys.
    *
-   * @param publicKey  the public key
+   * @param certificate the certificate
    * @param privateKey the private key
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
-  public void setSPKeys(InputStream publicKey, InputStream privateKey) throws SamlException {
-    if (publicKey == null || privateKey == null) {
+  public void setSPKeys(X509Certificate certificate, PrivateKey privateKey) throws SamlException {
+    if (certificate == null || privateKey == null) {
       throw new SamlException("No credentials provided");
     }
-    PrivateKey pk = loadPrivateKey(privateKey);
-    X509Certificate cert = loadCertificate(publicKey);
-    spCredential = new BasicX509Credential(cert, pk);
+    spCredential = new BasicX509Credential(certificate, privateKey);
   }
 
   /**
@@ -903,6 +901,9 @@ public class SamlClient {
               null,
               new StaticKeyInfoCredentialResolver(spCredential),
               new InlineEncryptedKeyResolver());
+
+      decrypter.setRootInNewDocument(true);
+
       // Decrypt the assertion.
       Assertion decryptedAssertion = decrypter.decrypt(encryptedAssertion);
       // Add the assertion
