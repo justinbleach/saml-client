@@ -349,12 +349,13 @@ public class SamlClient {
     //SAMLRequest=value&RelayState=value&SigAlg=value "Finally, note that if there is no RelayState value, the entire parameter should be omitted from thesignature computation (and not included as an empty parameter name)."
     //
     StringBuilder sb = new StringBuilder();
-    sb.append("SAMLRequest=").append(URLEncoder.encode(getSamlRequest(SamlClient.SamlIdpBinding.Redirect), "UTF-8"));
+    sb.append("SAMLRequest=")
+        .append(URLEncoder.encode(getSamlRequest(SamlClient.SamlIdpBinding.Redirect), "UTF-8"));
 
     if (relayState != null)
       sb.append("&RelayState=").append(URLEncoder.encode(relayState, "UTF-8"));
 
-    sb.append("&SigAlg=").append( "http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1" );
+    sb.append("&SigAlg=").append("http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1");
 
     byte[] bytesToSign = sb.toString().getBytes("UTF-8");
     try {
@@ -847,15 +848,14 @@ public class SamlClient {
     nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
     request.setNameIDPolicy(nameIDPolicy);
 
-    if (binding != SamlClient.SamlIdpBinding.Redirect) 
-        signSAMLObject(request);
+    if (binding != SamlClient.SamlIdpBinding.Redirect) signSAMLObject(request);
 
     return marshallAndEncodeSamlObject(request, binding);
   }
 
   /**
    * Gets the encoded logout request.
-   * 
+   *
    * Assumes use of POST.
    *
    * @param nameId the name id
@@ -1168,9 +1168,9 @@ public class SamlClient {
   }
 
   /**
-   * Get the response issuer. 
-   * 
-   * @return 
+   * Get the response issuer.
+   *
+   * @return
    */
   public String getResponseIssuer() {
     return responseIssuer;
