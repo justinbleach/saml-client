@@ -355,11 +355,13 @@ public class SamlClient {
     if (relayState != null)
       sb.append("&RelayState=").append(URLEncoder.encode(relayState, "UTF-8"));
 
-    sb.append("&SigAlg=").append("http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1");
+    sb.append("&SigAlg=")
+        .append(
+            "http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256"); //http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
 
     byte[] bytesToSign = sb.toString().getBytes("UTF-8");
     try {
-      java.security.Signature sig = java.security.Signature.getInstance("SHA1withRSA");
+      java.security.Signature sig = java.security.Signature.getInstance("SHA256withRSA");
       sig.initSign(spCredential.getPrivateKey());
       sig.update(bytesToSign);
       byte[] signature = sig.sign();
