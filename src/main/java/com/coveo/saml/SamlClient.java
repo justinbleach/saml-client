@@ -631,6 +631,22 @@ public class SamlClient {
   }
 
   /**
+   * Decodes and validates an SAML logout request send by an identity provider.
+   *
+   * @param encodedRequest the encoded request send by the identity provider.
+   * @param method The HTTP method used by the request
+   * @return An {@link LogoutRequest} object containing information decoded from the SAML Logout
+   *         Request.
+   * @throws SamlException if the signature is invalid, or if any other error occurs.
+   */
+  public LogoutRequest decodeSamlLogoutRequest(String encodedRequest, String method)
+      throws SamlException {
+    LogoutRequest logoutRequest = (LogoutRequest) parseResponse(encodedRequest, method);
+    ValidatorUtils.validate(logoutRequest, responseIssuer, credentials);
+    return logoutRequest;
+  }
+
+  /**
    * Set service provider keys.
    *
    * @param publicKey  the public key
@@ -648,7 +664,8 @@ public class SamlClient {
    * @param privateKey the private key
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
-  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey) throws SamlException {
+  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey)
+      throws SamlException {
     if (publicKey == null || privateKey == null) {
       throw new SamlException("No credentials provided");
     }
@@ -689,14 +706,15 @@ public class SamlClient {
    * @param privateKey the private key
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
-  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey) throws SamlException {
+  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey)
+      throws SamlException {
     additionalSpCredentials.add(new BasicX509Credential(certificate, privateKey));
   }
 
   /**
    * Remove all additional service provider decryption certificate/key pairs.
    */
-  public void clearAdditionalSPKeys() throws SamlException {
+  public void clearAdditionalSPKeys() {
     additionalSpCredentials = new ArrayList<>();
   }
 
@@ -873,6 +891,21 @@ public class SamlClient {
     String encodedResponse = request.getParameter(HTTP_REQ_SAML_PARAM);
     decodeAndValidateSamlLogoutRequest(encodedResponse, nameID, request.getMethod());
   }
+
+  /**
+   * Processes a POST containing the SAML logout request.
+   *
+   * @param request the {@link HttpServletRequest}.
+   * @return An {@link LogoutRequest} object containing information decoded from the SAML Logout
+   *         Request.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public LogoutRequest processLogoutRequestPostFromIdentityProvider(HttpServletRequest request)
+      throws SamlException {
+    String encodedResponse = request.getParameter(HTTP_REQ_SAML_PARAM);
+    return decodeSamlLogoutRequest(encodedResponse, request.getMethod());
+  }
+
   /**
    * Processes a POST containing the SAML response.
    *
@@ -942,11 +975,11 @@ public class SamlClient {
       // Create a decrypter.
       List<KeyInfoCredentialResolver> resolverChain = new ArrayList<>();
 
-      if(spCredential != null) {
+      if (spCredential != null) {
         resolverChain.add(new StaticKeyInfoCredentialResolver(spCredential));
       }
 
-      if(!additionalSpCredentials.isEmpty()) {
+      if (!additionalSpCredentials.isEmpty()) {
         resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
       }
 

@@ -1,7 +1,6 @@
 package com.coveo.saml;
 
 import java.util.List;
-
 import org.joda.time.DateTime;
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
@@ -25,7 +24,7 @@ class ValidatorUtils {
   /**
    * Validate response.
    *
-   * @param response       the response
+   * @param response the response
    * @param responseIssuer the response issuer
    * @throws SamlException the saml exception
    */
@@ -58,7 +57,7 @@ class ValidatorUtils {
   /**
    * Validate issuer.
    *
-   * @param response       the response
+   * @param response the response
    * @param responseIssuer the response issuer
    * @throws SamlException the saml exception
    */
@@ -68,10 +67,11 @@ class ValidatorUtils {
       throw new SamlException("The response issuer didn't match the expected value");
     }
   }
+
   /**
    * Validate issuer.
    *
-   * @param request       the response
+   * @param request the response
    * @param requestIssuer the request issuer
    * @throws SamlException the saml exception
    */
@@ -81,13 +81,14 @@ class ValidatorUtils {
       throw new SamlException("The request issuer didn't match the expected value");
     }
   }
+
   /**
    * Validate assertion.
    *
-   * @param response       the response
+   * @param response the response
    * @param responseIssuer the response issuer
-   * @param now            the current date time (for unit test only)
-   * @param notBeforeSkew  the notBeforeSkew
+   * @param now the current date time (for unit test only)
+   * @param notBeforeSkew the notBeforeSkew
    * @throws SamlException the saml exception
    */
   private static void validateAssertion(
@@ -114,8 +115,8 @@ class ValidatorUtils {
    * Enforce conditions.
    *
    * @param conditions the conditions
-   * @param _now            the current date time (for unit test only)
-   * @param notBeforeSkew  the notBeforeSkew
+   * @param _now the current date time (for unit test only)
+   * @param notBeforeSkew the notBeforeSkew
    * @throws SamlException the saml exception
    */
   private static void enforceConditions(Conditions conditions, DateTime _now, long notBeforeSkew)
@@ -137,7 +138,7 @@ class ValidatorUtils {
   /**
    * Validate signature.
    *
-   * @param response    the response
+   * @param response the response
    * @param credentials the credentials
    * @throws SamlException the saml exception
    */
@@ -151,7 +152,7 @@ class ValidatorUtils {
   /**
    * Validate assertion signature.
    *
-   * @param response    the response
+   * @param response the response
    * @param credentials the credentials
    * @throws SamlException the saml exception
    */
@@ -171,7 +172,7 @@ class ValidatorUtils {
   /**
    * Validate boolean.
    *
-   * @param signature   the signature
+   * @param signature the signature
    * @param credentials the credentials
    * @return the boolean
    */
@@ -197,11 +198,11 @@ class ValidatorUtils {
   /**
    * Validate.
    *
-   * @param response       the response
+   * @param response the response
    * @param responseIssuer the response issuer
-   * @param credentials    the credentials
-   * @param now            the current date time (for unit test only)
-   * @param notBeforeSkew  the notBeforeSkew
+   * @param credentials the credentials
+   * @param now the current date time (for unit test only)
+   * @param notBeforeSkew the notBeforeSkew
    * @throws SamlException the saml exception
    */
   public static void validate(
@@ -216,12 +217,13 @@ class ValidatorUtils {
     validateSignature(response, credentials);
     validateAssertionSignature(response, credentials);
   }
+
   /**
    * Validate.
    *
-   * @param logoutRequest       the response
+   * @param logoutRequest the response
    * @param responseIssuer the response issuer
-   * @param credentials    the credentials
+   * @param credentials the credentials
    * @throws SamlException the saml exception
    */
   public static void validate(
@@ -233,12 +235,28 @@ class ValidatorUtils {
     validateLogoutRequest(logoutRequest, responseIssuer, nameID);
     validateSignature(logoutRequest, credentials);
   }
+
   /**
    * Validate.
    *
-   * @param response       the response
+   * @param logoutRequest the response
    * @param responseIssuer the response issuer
-   * @param credentials    the credentials
+   * @param credentials the credentials
+   * @throws SamlException the saml exception
+   */
+  public static void validate(
+      LogoutRequest logoutRequest, String responseIssuer, List<Credential> credentials)
+      throws SamlException {
+    validateLogoutRequest(logoutRequest, responseIssuer);
+    validateSignature(logoutRequest, credentials);
+  }
+
+  /**
+   * Validate.
+   *
+   * @param response the response
+   * @param responseIssuer the response issuer
+   * @param credentials the credentials
    * @throws SamlException the saml exception
    */
   public static void validate(
@@ -251,7 +269,7 @@ class ValidatorUtils {
   /**
    * Validate response.
    *
-   * @param response       the response
+   * @param response the response
    * @param responseIssuer the response issuer
    * @throws SamlException the saml exception
    */
@@ -265,10 +283,11 @@ class ValidatorUtils {
     validateIssuer(response, responseIssuer);
     validateStatus(response);
   }
+
   /**
    * Validate response.
    *
-   * @param request       the request
+   * @param request the request
    * @param requestIssuer the response issuer
    * @throws SamlException the saml exception
    */
@@ -284,10 +303,27 @@ class ValidatorUtils {
   }
 
   /**
+   * Validate response.
+   *
+   * @param request the request
+   * @param requestIssuer the response issuer
+   * @throws SamlException the saml exception
+   */
+  private static void validateLogoutRequest(LogoutRequest request, String requestIssuer)
+      throws SamlException {
+    try {
+      new LogoutRequestSchemaValidator().validate(request);
+    } catch (SamlException ex) {
+      throw new SamlException("The request schema validation failed", ex);
+    }
+    validateIssuer(request, requestIssuer);
+  }
+
+  /**
    * Validate the logout request name id.
    *
    * @param request the request
-   * @param nameID  the name id
+   * @param nameID the name id
    * @throws SamlException the saml exception
    */
   private static void validateNameId(LogoutRequest request, String nameID) throws SamlException {
