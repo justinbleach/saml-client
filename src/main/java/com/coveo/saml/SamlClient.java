@@ -696,7 +696,7 @@ public class SamlClient {
   /**
    * Remove all additional service provider decryption certificate/key pairs.
    */
-  public void clearAdditionalSPKeys() throws SamlException {
+  public void clearAdditionalSPKeys() {
     additionalSpCredentials = new ArrayList<>();
   }
 
