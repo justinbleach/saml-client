@@ -14,7 +14,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.Collections;
 
 import org.apache.commons.codec.binary.Base64;
 import org.joda.time.DateTime;
