@@ -57,7 +57,7 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
 
-    <opensaml.version>3.4.5</opensaml.version>
+    <opensaml.version>4.0.1</opensaml.version>
   </properties>
 
   <dependencies>
@@ -85,13 +85,13 @@
       <!-- transitive via opensaml, bumped here to address vulnerabilities -->
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcprov-jdk15on</artifactId>
-      <version>1.65.01</version>
+      <version>1.68</version>
     </dependency>
     <dependency>
-      <!-- transitive via opensaml, bumped here from 3.2.1 to 3.2.2 to address vulnerabilities. -->
-      <groupId>commons-collections</groupId>
-      <artifactId>commons-collections</artifactId>
-      <version>3.2.2</version>
+      <!-- transitive via opensaml, bumped here to address vulnerabilities -->
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcpkix-jdk15on</artifactId>
+      <version>1.68</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -100,8 +100,8 @@
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-      <version>3.10</version>
+      <artifactId>commons-text</artifactId>
+      <version>1.9</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
@@ -142,6 +142,9 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
         <version>2.10.3</version>
+        <configuration>
+          <source>8</source>
+        </configuration>
         <executions>
           <execution>
             <id>attach-javadocs</id>

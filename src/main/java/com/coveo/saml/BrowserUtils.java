@@ -1,6 +1,6 @@
 package com.coveo.saml;
 
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -23,12 +23,12 @@ public class BrowserUtils {
     Writer writer = response.getWriter();
     writer.write(
         "<html><head></head><body><form id='TheForm' action='"
-            + StringEscapeUtils.escapeHtml(url)
+            + StringEscapeUtils.escapeHtml4(url)
             + "' method='POST'>");
 
     for (String key : values.keySet()) {
-      String encodedKey = StringEscapeUtils.escapeHtml(key);
-      String encodedValue = StringEscapeUtils.escapeHtml(values.get(key));
+      String encodedKey = StringEscapeUtils.escapeHtml4(key);
+      String encodedValue = StringEscapeUtils.escapeHtml4(values.get(key));
       writer.write(
           "<input type='hidden' id='"
               + encodedKey

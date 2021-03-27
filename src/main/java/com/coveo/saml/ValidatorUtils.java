@@ -1,8 +1,8 @@
 package com.coveo.saml;
 
+import java.time.Instant;
 import java.util.List;
 
-import org.joda.time.DateTime;
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Conditions;
@@ -91,7 +91,7 @@ class ValidatorUtils {
    * @throws SamlException the saml exception
    */
   private static void validateAssertion(
-      Response response, String responseIssuer, DateTime now, long notBeforeSkew)
+      Response response, String responseIssuer, Instant now, long notBeforeSkew)
       throws SamlException {
     if (response.getAssertions().size() != 1) {
       throw new SamlException("The response doesn't contain exactly 1 assertion");
@@ -118,17 +118,17 @@ class ValidatorUtils {
    * @param notBeforeSkew  the notBeforeSkew
    * @throws SamlException the saml exception
    */
-  private static void enforceConditions(Conditions conditions, DateTime _now, long notBeforeSkew)
+  private static void enforceConditions(Conditions conditions, Instant _now, long notBeforeSkew)
       throws SamlException {
-    DateTime now = _now != null ? _now : DateTime.now();
+    Instant now = _now != null ? _now : Instant.now();
 
-    DateTime notBefore = conditions.getNotBefore();
-    DateTime skewedNotBefore = notBefore.minus(notBeforeSkew);
+    Instant notBefore = conditions.getNotBefore();
+    Instant skewedNotBefore = notBefore.minusSeconds(notBeforeSkew);
     if (now.isBefore(skewedNotBefore)) {
       throw new SamlException("The assertion cannot be used before " + notBefore.toString());
     }
 
-    DateTime notOnOrAfter = conditions.getNotOnOrAfter();
+    Instant notOnOrAfter = conditions.getNotOnOrAfter();
     if (now.isAfter(notOnOrAfter)) {
       throw new SamlException("The assertion cannot be used after  " + notOnOrAfter.toString());
     }
@@ -188,7 +188,7 @@ class ValidatorUtils {
               try {
                 SignatureValidator.validate(signature, credential);
                 return true;
-              } catch (SignatureException ex) {
+              } catch (SignatureException | IllegalArgumentException ex) {
                 return false;
               }
             });
@@ -208,7 +208,7 @@ class ValidatorUtils {
       Response response,
       String responseIssuer,
       List<Credential> credentials,
-      DateTime now,
+      Instant now,
       long notBeforeSkew)
       throws SamlException {
     validateResponse(response, responseIssuer);
