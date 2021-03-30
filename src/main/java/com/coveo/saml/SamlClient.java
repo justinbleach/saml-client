@@ -843,7 +843,7 @@ public class SamlClient {
     stat.setStatusCode(statCode);
     if (statMsg != null) {
       StatusMessage statMessage = new StatusMessageBuilder().buildObject();
-      statMessage.setMessage(statMsg);
+      statMessage.setValue(statMsg);
       stat.setStatusMessage(statMessage);
     }
     response.setStatus(stat);
