@@ -54,7 +54,7 @@ public class SamlLogoutResponse {
    */
   public String getMessage() {
     StatusMessage statusMessage = status.getStatusMessage();
-    return statusMessage == null ? "none" : statusMessage.getMessage();
+    return statusMessage == null ? "none" : statusMessage.getValue();
   }
 
   /**
