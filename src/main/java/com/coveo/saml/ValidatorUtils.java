@@ -122,10 +122,12 @@ class ValidatorUtils {
       throws SamlException {
     DateTime now = _now != null ? _now : DateTime.now();
 
-    DateTime notBefore = conditions.getNotBefore();
-    DateTime skewedNotBefore = notBefore.minus(notBeforeSkew);
-    if (now.isBefore(skewedNotBefore)) {
-      throw new SamlException("The assertion cannot be used before " + notBefore.toString());
+    if (conditions.getNotBefore() != null) {
+      DateTime notBefore = conditions.getNotBefore();
+      DateTime skewedNotBefore = notBefore.minus(notBeforeSkew);
+      if (now.isBefore(skewedNotBefore)) {
+        throw new SamlException("The assertion cannot be used before " + notBefore.toString());
+      }
     }
 
     DateTime notOnOrAfter = conditions.getNotOnOrAfter();
