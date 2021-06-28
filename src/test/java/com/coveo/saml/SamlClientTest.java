@@ -498,7 +498,24 @@ public class SamlClientTest {
     assertTrue(decoded.contains(">myidentifier<"));
     assertTrue(decoded.contains(StatusCode.SUCCESS));
   }
-
+  
+  @Test
+  public void getLogoutProviderUrl() throws SamlException {
+    SamlClient client = getSimpleSamlPhp();
+    assertEquals("http://localhost:8080/simplesaml/saml2/idp/SingleLogoutService.php",
+            client.getLogoutProviderUrl());
+    assertEquals("http://localhost:8080/simplesaml/saml2/idp/SSOService.php",
+            client.getLoginProviderUrl());
+  }
+  
+  private SamlClient getSimpleSamlPhp()
+          throws SamlException {
+    return SamlClient.fromMetadata(
+            "myidentifier",
+            "http://some/url",
+            getXml("simplesamlphp.xml"),
+            SamlClient.SamlIdpBinding.POST);
+  }
   private SamlClient getKeyCloakClient(boolean signingNewDocument)
       throws IOException, SamlException {
     SamlClient client =
