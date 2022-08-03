@@ -260,21 +260,22 @@ public class SamlClientTest {
   }
 
   @Test
-  public void decodeAndValidateSamlResponseWithEncryptedSignedAssertionWithAlternateKeys() throws Throwable {
+  public void decodeAndValidateSamlResponseWithEncryptedSignedAssertionWithAlternateKeys()
+      throws Throwable {
     SamlClient client = getKeyCloakClient(false);
     client.setDateTimeNow(ASSERTION_DATE);
 
     client.setSPKeys(
-      this.getClass().getResource("saml-alt-public-key.crt").getFile(),
-      this.getClass().getResource("saml-alt-private-key.pk8").getFile());
+        this.getClass().getResource("saml-alt-public-key.crt").getFile(),
+        this.getClass().getResource("saml-alt-private-key.pk8").getFile());
 
     client.addAdditionalSPKey(
-      this.getClass().getResource("saml-public-key.crt").getFile(),
-      this.getClass().getResource("saml-private-key.pk8").getFile()
-    );
+        this.getClass().getResource("saml-public-key.crt").getFile(),
+        this.getClass().getResource("saml-private-key.pk8").getFile());
 
     SamlResponse response =
-            client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE_WITH_SIGNED_AND_ENCRYPTED_ASSERTION, "POST");
+        client.decodeAndValidateSamlResponse(
+            AN_ENCODED_RESPONSE_WITH_SIGNED_AND_ENCRYPTED_ASSERTION, "POST");
 
     assertEquals("mlaporte@coveo.com", response.getNameID());
   }

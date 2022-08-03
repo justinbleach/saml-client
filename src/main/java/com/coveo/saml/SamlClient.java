@@ -648,7 +648,8 @@ public class SamlClient {
    * @param privateKey the private key
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
-  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey) throws SamlException {
+  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey)
+      throws SamlException {
     if (publicKey == null || privateKey == null) {
       throw new SamlException("No credentials provided");
     }
@@ -689,12 +690,14 @@ public class SamlClient {
    * @param privateKey the private key
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
-  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey) throws SamlException {
+  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey)
+      throws SamlException {
     additionalSpCredentials.add(new BasicX509Credential(certificate, privateKey));
   }
 
   /**
    * Remove all additional service provider decryption certificate/key pairs.
+   * @throws SamlException never
    */
   public void clearAdditionalSPKeys() throws SamlException {
     additionalSpCredentials = new ArrayList<>();
@@ -942,11 +945,11 @@ public class SamlClient {
       // Create a decrypter.
       List<KeyInfoCredentialResolver> resolverChain = new ArrayList<>();
 
-      if(spCredential != null) {
+      if (spCredential != null) {
         resolverChain.add(new StaticKeyInfoCredentialResolver(spCredential));
       }
 
-      if(!additionalSpCredentials.isEmpty()) {
+      if (!additionalSpCredentials.isEmpty()) {
         resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
       }
 
