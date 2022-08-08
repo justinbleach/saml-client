@@ -20,7 +20,7 @@ Add this dependency to your `pom.xml` to reference the library:
     <dependency>
       <groupId>com.coveo</groupId>
       <artifactId>saml-client</artifactId>
-      <version>4.0.2</version>
+      <version>4.0.3</version>
     </dependency>
 ```
 
