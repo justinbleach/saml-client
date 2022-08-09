@@ -85,7 +85,7 @@
       <!-- transitive via opensaml, bumped here to address vulnerabilities -->
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcprov-jdk15on</artifactId>
-      <version>1.67</version>
+      <version>1.70</version>
     </dependency>
     <dependency>
       <!-- transitive via opensaml, bumped here to address vulnerabilities -->
