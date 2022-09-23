@@ -233,7 +233,7 @@ public class SamlClientTest {
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     int skew = 60 * 60 * 1000;
 
-    client.setDateTimeNow(ASSERTION_DATE.minusMillis(skew));
+    client.setInstantNow(ASSERTION_DATE.minusMillis(skew));
 
     client.setNotBeforeSkew(skew);
     SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE, "POST");
@@ -247,7 +247,7 @@ public class SamlClientTest {
             "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
     int skew = 60 * 60 * 1000;
 
-    client.setDateTimeNow(ASSERTION_DATE.minusMillis(skew));
+    client.setInstantNow(ASSERTION_DATE.minusMillis(skew));
 
     SamlResponse response = client.decodeAndValidateSamlResponse(AN_ENCODED_RESPONSE, "POST");
     assertEquals("mlaporte@coveo.com", response.getNameID());
