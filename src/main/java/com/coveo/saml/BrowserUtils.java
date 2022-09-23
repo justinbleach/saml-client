@@ -1,5 +1,6 @@
 package com.coveo.saml;
 
+import org.apache.commons.text.StringEscapeUtils;
 
 import javax.servlet.http.HttpServletResponse;
 

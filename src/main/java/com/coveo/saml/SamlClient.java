@@ -138,7 +138,8 @@ public class SamlClient {
    *
    * @param now the date to use for now.
    */
-  public void setDateTimeNow(Instant now) {
+
+  public void setInstantNow(Instant now) {
     this.now = now;
   }
 
@@ -835,7 +836,7 @@ public class SamlClient {
     stat.setStatusCode(statCode);
     if (statMsg != null) {
       StatusMessage statMessage = new StatusMessageBuilder().buildObject();
-      statMessage.setMessage(statMsg);
+      statMessage.setValue(statMsg);
       stat.setStatusMessage(statMessage);
     }
     response.setStatus(stat);

@@ -1,6 +1,7 @@
 package com.coveo.saml;
 
 import java.io.InputStream;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -131,10 +132,12 @@ class ValidatorUtils {
    */
   private static void enforceConditions(Conditions conditions, Instant _now, long notBeforeSkew)
       throws SamlException {
-	  Instant now = _now != null ? _now : Instant.now();
+
+    Instant now = _now != null ? _now : Instant.now();
 
 	  Instant notBefore = conditions.getNotBefore();
 	  Instant skewedNotBefore = notBefore.minusMillis(notBeforeSkew);
+
     if (now.isBefore(skewedNotBefore)) {
       throw new SamlException("The assertion cannot be used before " + notBefore.toString());
     }
@@ -201,6 +204,7 @@ class ValidatorUtils {
                 return true;
               } catch (SignatureException | IllegalArgumentException ex) {
                 logger.debug("Error while validating signigture", ex);
+
                 return false;
               }
             });

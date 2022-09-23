@@ -57,7 +57,8 @@
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
 
-    <opensaml.version>4.0.1</opensaml.version>
+    <opensaml.version>4.2.0</opensaml.version>
+
   </properties>
 
   <dependencies>
