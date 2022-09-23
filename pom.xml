@@ -57,7 +57,7 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
 
-    <opensaml.version>3.4.6</opensaml.version>
+    <opensaml.version>4.0.1</opensaml.version>
   </properties>
 
   <dependencies>
@@ -85,7 +85,7 @@
       <!-- transitive via opensaml, bumped here to address vulnerabilities -->
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcprov-jdk15on</artifactId>
-      <version>1.67</version>
+      <version>1.68</version>
     </dependency>
     <dependency>
       <!-- transitive via opensaml, bumped here to address vulnerabilities -->
@@ -96,8 +96,8 @@
     <dependency>
       <!-- transitive via opensaml, bumped here from 3.2.1 to 3.2.2 to address vulnerabilities. -->
       <groupId>commons-collections</groupId>
-      <artifactId>commons-collections</artifactId>
-      <version>3.2.2</version>
+      <artifactId>bcpkix-jdk15on</artifactId>
+      <version>1.68</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -106,8 +106,8 @@
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-      <version>3.10</version>
+      <artifactId>commons-text</artifactId>
+      <version>1.9</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
