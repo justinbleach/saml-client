@@ -1,8 +1,9 @@
 package com.coveo.saml;
 
+import java.io.InputStream;
+import java.time.Instant;
 import java.util.List;
 
-import org.joda.time.DateTime;
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Conditions;
@@ -16,12 +17,21 @@ import org.opensaml.security.credential.Credential;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureException;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import net.shibboleth.utilities.java.support.xml.BasicParserPool;
+import net.shibboleth.utilities.java.support.xml.XMLParserException;
 
 /**
  * The type Validator utils.
  */
 class ValidatorUtils {
 
+
+  private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
+	    
+	  
   /**
    * Validate response.
    *
@@ -34,6 +44,7 @@ class ValidatorUtils {
     try {
       new ResponseSchemaValidator().validate(response);
     } catch (SamlException e) {
+      logger.debug("The response schema validation failed", e);
       throw new SamlException("The response schema validation failed", e);
     }
 
@@ -91,7 +102,7 @@ class ValidatorUtils {
    * @throws SamlException the saml exception
    */
   private static void validateAssertion(
-      Response response, String responseIssuer, DateTime now, long notBeforeSkew)
+      Response response, String responseIssuer, Instant now, long notBeforeSkew)
       throws SamlException {
     if (response.getAssertions().size() != 1) {
       throw new SamlException("The response doesn't contain exactly 1 assertion");
@@ -118,17 +129,17 @@ class ValidatorUtils {
    * @param notBeforeSkew  the notBeforeSkew
    * @throws SamlException the saml exception
    */
-  private static void enforceConditions(Conditions conditions, DateTime _now, long notBeforeSkew)
+  private static void enforceConditions(Conditions conditions, Instant _now, long notBeforeSkew)
       throws SamlException {
-    DateTime now = _now != null ? _now : DateTime.now();
+	  Instant now = _now != null ? _now : Instant.now();
 
-    DateTime notBefore = conditions.getNotBefore();
-    DateTime skewedNotBefore = notBefore.minus(notBeforeSkew);
+	  Instant notBefore = conditions.getNotBefore();
+	  Instant skewedNotBefore = notBefore.minusMillis(notBeforeSkew);
     if (now.isBefore(skewedNotBefore)) {
       throw new SamlException("The assertion cannot be used before " + notBefore.toString());
     }
 
-    DateTime notOnOrAfter = conditions.getNotOnOrAfter();
+    Instant notOnOrAfter = conditions.getNotOnOrAfter();
     if (now.isAfter(notOnOrAfter)) {
       throw new SamlException("The assertion cannot be used after  " + notOnOrAfter.toString());
     }
@@ -188,7 +199,8 @@ class ValidatorUtils {
               try {
                 SignatureValidator.validate(signature, credential);
                 return true;
-              } catch (SignatureException ex) {
+              } catch (SignatureException | IllegalArgumentException ex) {
+                logger.debug("Error while validating signigture", ex);
                 return false;
               }
             });
@@ -208,7 +220,7 @@ class ValidatorUtils {
       Response response,
       String responseIssuer,
       List<Credential> credentials,
-      DateTime now,
+      Instant now,
       long notBeforeSkew)
       throws SamlException {
     validateResponse(response, responseIssuer);
@@ -248,6 +260,11 @@ class ValidatorUtils {
     validateSignature(response, credentials);
   }
 
+  public static void validateIdpMetadata(InputStream metadata) throws SamlException, XMLParserException {
+      BasicParserPool parser = XMLHelper.createDOMParser();
+      parser.parse(metadata);
+  }
+  
   /**
    * Validate response.
    *

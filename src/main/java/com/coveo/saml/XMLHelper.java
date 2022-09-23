@@ -26,6 +26,9 @@ import org.w3c.dom.ls.LSOutput;
 import org.w3c.dom.ls.LSSerializer;
 import org.w3c.dom.ls.LSSerializerFilter;
 
+import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
+import net.shibboleth.utilities.java.support.xml.BasicParserPool;
+
 import java.io.Writer;
 
 import java.util.Map;
@@ -123,4 +126,24 @@ public class XMLHelper {
     DOMImplementationLS domImplLS = (DOMImplementationLS) domImpl.getFeature("LS", "3.0");
     return domImplLS;
   }
+  
+  
+  /**
+   * Creates a DOM parser 
+   * 
+   * @return BasicParserPool
+   * 
+   * @throws SamlException
+   */
+  public static BasicParserPool createDOMParser() throws SamlException {
+    BasicParserPool basicParserPool = new BasicParserPool();
+    try {
+      basicParserPool.initialize();
+    } catch (ComponentInitializationException e) {
+      throw new SamlException("Failed to create an XML parser");
+    }
+
+    return basicParserPool;
+  }
+  
 }

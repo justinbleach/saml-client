@@ -17,6 +17,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,7 +36,6 @@ import javax.xml.namespace.QName;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BOMInputStream;
-import org.joda.time.DateTime;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
@@ -118,7 +118,7 @@ public class SamlClient {
   private String identityProviderUrl;
   private String responseIssuer;
   private List<Credential> credentials;
-  private DateTime now; // used for testing only
+  private Instant now; // used for testing only
   private long notBeforeSkew = 0L;
   private SamlIdpBinding samlBinding;
   private BasicX509Credential spCredential;
@@ -138,7 +138,7 @@ public class SamlClient {
    *
    * @param now the date to use for now.
    */
-  public void setDateTimeNow(DateTime now) {
+  public void setDateTimeNow(Instant now) {
     this.now = now;
   }
 
@@ -200,7 +200,7 @@ public class SamlClient {
     this.responseIssuer = responseIssuer;
     credentials = certificates.stream().map(SamlClient::getCredential).collect(Collectors.toList());
     this.samlBinding = samlBinding;
-    this.domParser = createDOMParser();
+    this.domParser = this.domParser = XMLHelper.createDOMParser();
   }
 
   /**
@@ -488,21 +488,10 @@ public class SamlClient {
     }
   }
 
-  private static BasicParserPool createDOMParser() throws SamlException {
-    BasicParserPool basicParserPool = new BasicParserPool();
-    try {
-      basicParserPool.initialize();
-    } catch (ComponentInitializationException e) {
-      throw new SamlException("Failed to create an XML parser");
-    }
-
-    return basicParserPool;
-  }
-
   private static DOMMetadataResolver createMetadataResolver(InputStream metadata)
       throws SamlException {
     try {
-      BasicParserPool parser = createDOMParser();
+      BasicParserPool parser = XMLHelper.createDOMParser();
       Document metadataDocument = parser.parse(metadata);
       DOMMetadataResolver resolver = new DOMMetadataResolver(metadataDocument.getDocumentElement());
       resolver.setId(
@@ -741,7 +730,7 @@ public class SamlClient {
     request.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
 
     request.setVersion(SAMLVersion.VERSION_20);
-    request.setIssueInstant(DateTime.now());
+    request.setIssueInstant(Instant.now());
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
     issuer.setValue(relyingPartyIdentifier);
@@ -833,7 +822,7 @@ public class SamlClient {
     response.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
 
     response.setVersion(SAMLVersion.VERSION_20);
-    response.setIssueInstant(DateTime.now());
+    response.setIssueInstant(Instant.now());
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
     issuer.setValue(relyingPartyIdentifier);
