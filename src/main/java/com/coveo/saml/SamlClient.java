@@ -21,6 +21,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,7 +42,6 @@ import javax.xml.namespace.QName;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BOMInputStream;
-import org.joda.time.DateTime;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
@@ -83,7 +83,10 @@ import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureSigningParameters;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
+import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
+import org.opensaml.xmlsec.keyinfo.impl.ChainingKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.impl.CollectionKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.X509KeyInfoGeneratorFactory;
 import org.opensaml.xmlsec.signature.SignableXMLObject;
@@ -121,10 +124,11 @@ public class SamlClient {
   private String identityProviderUrl;
   private String responseIssuer;
   private List<Credential> credentials;
-  private DateTime now; // used for testing only
+  private Instant now; // used for testing only
   private long notBeforeSkew = 0L;
   private SamlIdpBinding samlBinding;
   private BasicX509Credential spCredential;
+  private List<Credential> additionalSpCredentials = new ArrayList<>();
 
   /**
    * Returns the url where SAML requests should be posted.
@@ -140,7 +144,7 @@ public class SamlClient {
    *
    * @param now the date to use for now.
    */
-  public void setDateTimeNow(DateTime now) {
+  public void setInstantNow(Instant now) {
     this.now = now;
   }
 
@@ -701,6 +705,7 @@ public class SamlClient {
 
     ValidatorUtils.validate(logoutRequest, responseIssuer, credentials, nameID);
   }
+
   /**
    * Set service provider keys.
    *
@@ -709,12 +714,69 @@ public class SamlClient {
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
   public void setSPKeys(String publicKey, String privateKey) throws SamlException {
+    this.spCredential = generateBasicX509Credential(publicKey, privateKey);
+  }
+
+  /**
+   * generate an X509Credential from the provided key and cert.
+   *
+   * @param publicKey  the public key
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey)
+      throws SamlException {
     if (publicKey == null || privateKey == null) {
       throw new SamlException("No credentials provided");
     }
     PrivateKey pk = loadPrivateKey(privateKey);
     X509Certificate cert = loadCertificate(publicKey);
-    spCredential = new BasicX509Credential(cert, pk);
+    return new BasicX509Credential(cert, pk);
+  }
+
+  /**
+   * Set service provider keys.
+   *
+   * @param certificate the certificate
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  public void setSPKeys(X509Certificate certificate, PrivateKey privateKey) throws SamlException {
+    if (certificate == null || privateKey == null) {
+      throw new SamlException("No credentials provided");
+    }
+    spCredential = new BasicX509Credential(certificate, privateKey);
+  }
+
+  /**
+   * Add an additional service provider certificate/key pair for decryption.
+   *
+   * @param publicKey  the public key
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  public void addAdditionalSPKey(String publicKey, String privateKey) throws SamlException {
+    additionalSpCredentials.add(generateBasicX509Credential(publicKey, privateKey));
+  }
+
+  /**
+   * Add an additional service provider certificate/key pair for decryption.
+   *
+   * @param certificate the certificate
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey)
+      throws SamlException {
+    additionalSpCredentials.add(new BasicX509Credential(certificate, privateKey));
+  }
+
+  /**
+   * Remove all additional service provider decryption certificate/key pairs.
+   * @throws SamlException never
+   */
+  public void clearAdditionalSPKeys() throws SamlException {
+    additionalSpCredentials = new ArrayList<>();
   }
 
   /**
@@ -769,7 +831,7 @@ public class SamlClient {
     request.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
 
     request.setVersion(SAMLVersion.VERSION_20);
-    request.setIssueInstant(DateTime.now());
+    request.setIssueInstant(Instant.now());
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
     issuer.setValue(relyingPartyIdentifier);
@@ -899,7 +961,7 @@ public class SamlClient {
     response.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
 
     response.setVersion(SAMLVersion.VERSION_20);
-    response.setIssueInstant(DateTime.now());
+    response.setIssueInstant(Instant.now());
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
     issuer.setValue(relyingPartyIdentifier);
@@ -912,7 +974,7 @@ public class SamlClient {
     stat.setStatusCode(statCode);
     if (statMsg != null) {
       StatusMessage statMessage = new StatusMessageBuilder().buildObject();
-      statMessage.setMessage(statMsg);
+      statMessage.setValue(statMsg);
       stat.setStatusMessage(statMessage);
     }
     response.setStatus(stat);
@@ -1009,10 +1071,20 @@ public class SamlClient {
     }
     for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {
       // Create a decrypter.
+      List<KeyInfoCredentialResolver> resolverChain = new ArrayList<>();
+
+      if (spCredential != null) {
+        resolverChain.add(new StaticKeyInfoCredentialResolver(spCredential));
+      }
+
+      if (!additionalSpCredentials.isEmpty()) {
+        resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
+      }
+
       Decrypter decrypter =
           new Decrypter(
               null,
-              new StaticKeyInfoCredentialResolver(spCredential),
+              new ChainingKeyInfoCredentialResolver(resolverChain),
               new InlineEncryptedKeyResolver());
 
       decrypter.setRootInNewDocument(true);
