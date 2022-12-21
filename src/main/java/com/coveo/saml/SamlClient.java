@@ -288,7 +288,12 @@ public class SamlClient {
       throw new SamlException("Cannot decrypt the assertion", e);
     }
     //Validate  the response (Assertion / Signature / Schema)
-    ValidatorUtils.validate(response, responseIssuer, credentials, this.now, notBeforeSkew);
+    ValidatorUtils.validate(
+        response,
+        responseIssuer,
+        credentials,
+        this.now,
+        notBeforeSkew); //If this fails with REQUESTER = "urn:oasis:names:tc:SAML:2.0:status:Requester"; then the IDP is saying that the request was wrong.
 
     Assertion assertion = response.getAssertions().get(0);
     return new SamlResponse(assertion);
@@ -777,20 +782,6 @@ public class SamlClient {
    */
   public void clearAdditionalSPKeys() throws SamlException {
     additionalSpCredentials = new ArrayList<>();
-  }
-
-  /**
-   * Set service provider keys.
-   *
-   * @param certificate the certificate
-   * @param privateKey the private key
-   * @throws SamlException if publicKey and privateKey don't form a valid credential
-   */
-  public void setSPKeys(X509Certificate certificate, PrivateKey privateKey) throws SamlException {
-    if (certificate == null || privateKey == null) {
-      throw new SamlException("No credentials provided");
-    }
-    spCredential = new BasicX509Credential(certificate, privateKey);
   }
 
   /**
