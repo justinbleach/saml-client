@@ -2,7 +2,7 @@ package com.coveo.saml;
 
 import org.apache.commons.text.StringEscapeUtils;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Map;
