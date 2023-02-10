@@ -200,7 +200,7 @@ public class SamlClient {
     this.responseIssuer = responseIssuer;
     credentials = certificates.stream().map(SamlClient::getCredential).collect(Collectors.toList());
     this.samlBinding = samlBinding;
-    this.domParser = createDOMParser();
+    this.domParser = XMLHelper.createDOMParser();
   }
 
   /**
@@ -308,6 +308,25 @@ public class SamlClient {
   }
 
   /**
+   * Redirects an {@link jakarta.servlet.http.HttpServletResponse} to the configured identity provider.
+   *
+   * @param response   The {@link jakarta.servlet.http.HttpServletResponse}.
+   * @param relayState Optional relay state that will be passed along.
+   * @throws IOException   thrown if an IO error occurs.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public void redirectToIdentityProvider(jakarta.servlet.http.HttpServletResponse response, String relayState)
+      throws IOException, SamlException {
+    Map<String, String> values = new HashMap<>();
+    values.put("SAMLRequest", getSamlRequest());
+    if (relayState != null) {
+      values.put("RelayState", relayState);
+    }
+
+    BrowserUtils.postUsingBrowser(identityProviderUrl, response, values);
+  }
+  
+  /**
    * Processes a POST containing the SAML response.
    *
    * @param request the {@link HttpServletRequest}.
@@ -315,6 +334,19 @@ public class SamlClient {
    * @throws SamlException thrown is an unexpected error occurs.
    */
   public SamlResponse processPostFromIdentityProvider(HttpServletRequest request)
+      throws SamlException {
+    String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
+    return decodeAndValidateSamlResponse(encodedResponse, request.getMethod());
+  }
+  
+  /**
+   * Processes a POST containing the SAML response.
+   *
+   * @param request the {@link jakarta.servlet.http.HttpServletRequest}.
+   * @return An {@link SamlResponse} object containing information decoded from the SAML response.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public SamlResponse processPostFromIdentityProvider(jakarta.servlet.http.HttpServletRequest request)
       throws SamlException {
     String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
     return decodeAndValidateSamlResponse(encodedResponse, request.getMethod());
@@ -488,21 +520,10 @@ public class SamlClient {
     }
   }
 
-  private static BasicParserPool createDOMParser() throws SamlException {
-    BasicParserPool basicParserPool = new BasicParserPool();
-    try {
-      basicParserPool.initialize();
-    } catch (ComponentInitializationException e) {
-      throw new SamlException("Failed to create an XML parser");
-    }
-
-    return basicParserPool;
-  }
-
   private static DOMMetadataResolver createMetadataResolver(InputStream metadata)
       throws SamlException {
     try {
-      BasicParserPool parser = createDOMParser();
+      BasicParserPool parser = XMLHelper.createDOMParser();
       Document metadataDocument = parser.parse(metadata);
       DOMMetadataResolver resolver = new DOMMetadataResolver(metadataDocument.getDocumentElement());
       resolver.setId(
@@ -877,6 +898,18 @@ public class SamlClient {
     decodeAndValidateSamlLogoutRequest(encodedResponse, nameID, request.getMethod());
   }
   /**
+   * Processes a POST containing the SAML logout request.
+   *
+   * @param request the {@link jakarta.servlet.http.HttpServletRequest}.
+   * @param nameID the user to log out.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public void processLogoutRequestPostFromIdentityProvider(
+      jakarta.servlet.http.HttpServletRequest request, String nameID) throws SamlException {
+    String encodedResponse = request.getParameter(HTTP_REQ_SAML_PARAM);
+    decodeAndValidateSamlLogoutRequest(encodedResponse, nameID, request.getMethod());
+  }
+  /**
    * Processes a POST containing the SAML response.
    *
    * @param request the {@link HttpServletRequest}.
@@ -885,6 +918,18 @@ public class SamlClient {
    */
   public SamlLogoutResponse processPostLogoutResponseFromIdentityProvider(
       HttpServletRequest request) throws SamlException {
+    String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
+    return decodeAndValidateSamlLogoutResponse(encodedResponse, request.getMethod());
+  }
+  /**
+   * Processes a POST containing the SAML response.
+   *
+   * @param request the {@link jakarta.servlet.http.HttpServletRequest}.
+   * @return An {@link SamlResponse} object containing information decoded from the SAML response.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public SamlLogoutResponse processPostLogoutResponseFromIdentityProvider(
+      jakarta.servlet.http.HttpServletRequest request) throws SamlException {
     String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
     return decodeAndValidateSamlLogoutResponse(encodedResponse, request.getMethod());
   }
@@ -899,6 +944,26 @@ public class SamlClient {
    */
   public void redirectToIdentityProvider(
       HttpServletResponse response, String relayState, String nameId)
+      throws IOException, SamlException {
+    Map<String, String> values = new HashMap<>();
+    values.put("SAMLRequest", getLogoutRequest(nameId));
+    if (relayState != null) {
+      values.put("RelayState", relayState);
+    }
+
+    BrowserUtils.postUsingBrowser(identityProviderUrl, response, values);
+  }
+  /**
+   * Redirects an {@link jakarta.servlet.http.HttpServletResponse} to the configured identity provider.
+   *
+   * @param response   The {@link jakarta.servlet.http.HttpServletResponse}.
+   * @param relayState Optional relay state that will be passed along.
+   * @param nameId the user to log out.
+   * @throws IOException   thrown if an IO error occurs.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public void redirectToIdentityProvider(
+      jakarta.servlet.http.HttpServletResponse response, String relayState, String nameId)
       throws IOException, SamlException {
     Map<String, String> values = new HashMap<>();
     values.put("SAMLRequest", getLogoutRequest(nameId));
@@ -924,7 +989,23 @@ public class SamlClient {
     values.put(HTTP_RESP_SAML_PARAM, getSamlLogoutResponse(statusCode, statMsg));
     BrowserUtils.postUsingBrowser(identityProviderUrl, response, values);
   }
-
+  /**
+   * Redirect to identity provider logout.
+   *
+   * @param response   the response
+   * @param statusCode the status code
+   * @param statMsg    the stat msg
+   * @throws IOException   the io exception
+   * @throws SamlException the saml exception
+   */
+  public void redirectToIdentityProviderLogout(
+      jakarta.servlet.http.HttpServletResponse response, String statusCode, String statMsg)
+      throws IOException, SamlException {
+    Map<String, String> values = new HashMap<>();
+    values.put(HTTP_RESP_SAML_PARAM, getSamlLogoutResponse(statusCode, statMsg));
+    BrowserUtils.postUsingBrowser(identityProviderUrl, response, values);
+  }
+  
   private static XMLObject buildSamlObject(QName qname) {
     return XMLObjectProviderRegistrySupport.getBuilderFactory()
         .getBuilder(qname)

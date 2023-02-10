@@ -1,5 +1,6 @@
 package com.coveo.saml;
 
+import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
 
@@ -16,12 +17,19 @@ import org.opensaml.security.credential.Credential;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureException;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import net.shibboleth.utilities.java.support.xml.BasicParserPool;
+import net.shibboleth.utilities.java.support.xml.XMLParserException;
 
 /**
  * The type Validator utils.
  */
 class ValidatorUtils {
 
+  private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
+	  
   /**
    * Validate response.
    *
@@ -34,6 +42,7 @@ class ValidatorUtils {
     try {
       new ResponseSchemaValidator().validate(response);
     } catch (SamlException e) {
+      logger.debug("The response schema validation failed", e);
       throw new SamlException("The response schema validation failed", e);
     }
 
@@ -248,6 +257,11 @@ class ValidatorUtils {
     validateSignature(response, credentials);
   }
 
+  public static void validateIdpMetadata(InputStream metadata) throws SamlException, XMLParserException {
+      BasicParserPool parser = XMLHelper.createDOMParser();
+      parser.parse(metadata);
+  }
+  
   /**
    * Validate response.
    *

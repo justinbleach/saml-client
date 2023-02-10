@@ -19,9 +19,35 @@ public class BrowserUtils {
       String url, HttpServletResponse response, Map<String, String> values) throws IOException {
 
     response.setContentType("text/html");
-    @SuppressWarnings("resource")
     Writer writer = response.getWriter();
-    writer.write(
+    writeHtml(url, values, writer);
+    writer.flush();
+
+    response.setHeader("Cache-Control", "no-cache, no-store");
+    response.setHeader("Pragma", "no-cache");
+  }
+  
+  /**
+   * Renders an HTTP response that will cause the browser to POST the specified values to an url.
+   * @param url the url where to perform the POST.
+   * @param response the {@link jakarta.servlet.http.HttpServletResponse}.
+   * @param values the values to include in the POST.
+   * @throws IOException thrown if an IO error occurs.
+   */
+  public static void postUsingBrowser(
+      String url, jakarta.servlet.http.HttpServletResponse response, Map<String, String> values) throws IOException {
+
+    response.setContentType("text/html");
+    Writer writer = response.getWriter();
+    writeHtml(url, values, writer);
+    writer.flush();
+
+    response.setHeader("Cache-Control", "no-cache, no-store");
+    response.setHeader("Pragma", "no-cache");
+  }
+
+  private static void writeHtml(String url, Map<String, String> values, Writer writer) throws IOException {
+	writer.write(
         "<html><head></head><body><form id='TheForm' action='"
             + StringEscapeUtils.escapeHtml4(url)
             + "' method='POST'>");
@@ -41,9 +67,5 @@ public class BrowserUtils {
 
     writer.write(
         "</form><script type='text/javascript'>document.getElementById('TheForm').submit();</script></body></html>");
-    writer.flush();
-
-    response.setHeader("Cache-Control", "no-cache, no-store");
-    response.setHeader("Pragma", "no-cache");
-  }
+}
 }
