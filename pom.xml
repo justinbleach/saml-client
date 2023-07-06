@@ -4,7 +4,7 @@
 
   <groupId>com.coveo</groupId>
   <artifactId>saml-client</artifactId>
-  <version>4.0.1-SNAPSHOT</version>
+  <version>4.1.2</version>
   <packaging>jar</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>
@@ -57,7 +57,7 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
 
-    <opensaml.version>3.4.5</opensaml.version>
+    <opensaml.version>4.2.0</opensaml.version>
   </properties>
 
   <dependencies>
@@ -82,26 +82,14 @@
       <version>${opensaml.version}</version>
     </dependency>
     <dependency>
-      <!-- transitive via opensaml, bumped here to address vulnerabilities -->
-      <groupId>org.bouncycastle</groupId>
-      <artifactId>bcprov-jdk15on</artifactId>
-      <version>1.65.01</version>
-    </dependency>
-    <dependency>
-      <!-- transitive via opensaml, bumped here from 3.2.1 to 3.2.2 to address vulnerabilities. -->
-      <groupId>commons-collections</groupId>
-      <artifactId>commons-collections</artifactId>
-      <version>3.2.2</version>
-    </dependency>
-    <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
       <version>1.7.30</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-      <version>3.10</version>
+      <artifactId>commons-text</artifactId>
+      <version>1.10.0</version>
     </dependency>
     <dependency>
       <groupId>commons-io</groupId>
@@ -111,7 +99,7 @@
     <dependency>
       <groupId>commons-codec</groupId>
       <artifactId>commons-codec</artifactId>
-      <version>1.14</version>
+      <version>1.15</version>
     </dependency>
     <dependency>
       <groupId>junit</groupId>
@@ -142,6 +130,9 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
         <version>2.10.3</version>
+        <configuration>
+          <source>8</source>
+        </configuration>
         <executions>
           <execution>
             <id>attach-javadocs</id>
@@ -176,7 +167,7 @@
           <plugin>
             <groupId>org.sonatype.plugins</groupId>
             <artifactId>nexus-staging-maven-plugin</artifactId>
-            <version>1.6.6</version>
+            <version>1.6.13</version>
             <extensions>true</extensions>
             <configuration>
               <serverId>ossrh</serverId>

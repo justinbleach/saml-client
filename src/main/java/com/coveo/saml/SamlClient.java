@@ -17,6 +17,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,7 +36,6 @@ import javax.xml.namespace.QName;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BOMInputStream;
-import org.joda.time.DateTime;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
@@ -118,7 +118,7 @@ public class SamlClient {
   private String identityProviderUrl;
   private String responseIssuer;
   private List<Credential> credentials;
-  private DateTime now; // used for testing only
+  private Instant now; // used for testing only
   private long notBeforeSkew = 0L;
   private SamlIdpBinding samlBinding;
   private BasicX509Credential spCredential;
@@ -138,7 +138,7 @@ public class SamlClient {
    *
    * @param now the date to use for now.
    */
-  public void setDateTimeNow(DateTime now) {
+  public void setInstantNow(Instant now) {
     this.now = now;
   }
 
@@ -648,7 +648,8 @@ public class SamlClient {
    * @param privateKey the private key
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
-  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey) throws SamlException {
+  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey)
+      throws SamlException {
     if (publicKey == null || privateKey == null) {
       throw new SamlException("No credentials provided");
     }
@@ -689,12 +690,14 @@ public class SamlClient {
    * @param privateKey the private key
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
-  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey) throws SamlException {
+  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey)
+      throws SamlException {
     additionalSpCredentials.add(new BasicX509Credential(certificate, privateKey));
   }
 
   /**
    * Remove all additional service provider decryption certificate/key pairs.
+   * @throws SamlException never
    */
   public void clearAdditionalSPKeys() throws SamlException {
     additionalSpCredentials = new ArrayList<>();
@@ -738,7 +741,7 @@ public class SamlClient {
     request.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
 
     request.setVersion(SAMLVersion.VERSION_20);
-    request.setIssueInstant(DateTime.now());
+    request.setIssueInstant(Instant.now());
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
     issuer.setValue(relyingPartyIdentifier);
@@ -830,7 +833,7 @@ public class SamlClient {
     response.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
 
     response.setVersion(SAMLVersion.VERSION_20);
-    response.setIssueInstant(DateTime.now());
+    response.setIssueInstant(Instant.now());
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
     issuer.setValue(relyingPartyIdentifier);
@@ -843,7 +846,7 @@ public class SamlClient {
     stat.setStatusCode(statCode);
     if (statMsg != null) {
       StatusMessage statMessage = new StatusMessageBuilder().buildObject();
-      statMessage.setMessage(statMsg);
+      statMessage.setValue(statMsg);
       stat.setStatusMessage(statMessage);
     }
     response.setStatus(stat);
@@ -942,11 +945,11 @@ public class SamlClient {
       // Create a decrypter.
       List<KeyInfoCredentialResolver> resolverChain = new ArrayList<>();
 
-      if(spCredential != null) {
+      if (spCredential != null) {
         resolverChain.add(new StaticKeyInfoCredentialResolver(spCredential));
       }
 
-      if(!additionalSpCredentials.isEmpty()) {
+      if (!additionalSpCredentials.isEmpty()) {
         resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
       }
 
