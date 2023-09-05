@@ -104,6 +104,9 @@ import org.w3c.dom.Element;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 import net.shibboleth.utilities.java.support.xml.XMLParserException;
+import org.opensaml.xmlsec.encryption.support.ChainingEncryptedKeyResolver;
+import org.opensaml.xmlsec.encryption.support.EncryptedKeyResolver;
+import org.opensaml.xmlsec.encryption.support.SimpleRetrievalMethodEncryptedKeyResolver;
 
 public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
@@ -1070,13 +1073,19 @@ public class SamlClient {
 
       if (!additionalSpCredentials.isEmpty()) {
         resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
-      }
+      }      
 
+      //4.1.2-datb-2 A275378 If encrypted assertions use RetrievalMethod to refer to an EncryptedKey using a URI within the 
+      //document then SimpleRetrievalMethodEncryptedKeyResolver is needed to resolve these. 
+      List<EncryptedKeyResolver> ekResolverList = new ArrayList<>();
+      ekResolverList.add( new InlineEncryptedKeyResolver() );
+      ekResolverList.add( new SimpleRetrievalMethodEncryptedKeyResolver() );  
+      
       Decrypter decrypter =
           new Decrypter(
               null,
               new ChainingKeyInfoCredentialResolver(resolverChain),
-              new InlineEncryptedKeyResolver());
+              new ChainingEncryptedKeyResolver( ekResolverList ) );
 
       decrypter.setRootInNewDocument(true);
 
