@@ -28,7 +28,7 @@ import net.shibboleth.utilities.java.support.xml.XMLParserException;
  */
 class ValidatorUtils {
 
-  private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
+  private static final Logger logger = LoggerFactory.getLogger(ValidatorUtils.class);
 	  
   /**
    * Validate response.
