@@ -28,8 +28,6 @@ import net.shibboleth.utilities.java.support.xml.XMLParserException;
  */
 class ValidatorUtils {
 
-  private static final Logger logger = LoggerFactory.getLogger(ValidatorUtils.class);
-	  
   /**
    * Validate response.
    *
@@ -42,7 +40,6 @@ class ValidatorUtils {
     try {
       new ResponseSchemaValidator().validate(response);
     } catch (SamlException e) {
-      logger.debug("The response schema validation failed", e);
       throw new SamlException("The response schema validation failed", e);
     }
 
@@ -257,11 +254,6 @@ class ValidatorUtils {
     validateSignature(response, credentials);
   }
 
-  public static void validateIdpMetadata(InputStream metadata) throws SamlException, XMLParserException {
-      BasicParserPool parser = XMLHelper.createDOMParser();
-      parser.parse(metadata);
-  }
-  
   /**
    * Validate response.
    *
