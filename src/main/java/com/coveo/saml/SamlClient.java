@@ -2,6 +2,7 @@ package com.coveo.saml;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -10,8 +11,11 @@ import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.io.Reader;
 import java.io.StringWriter;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
@@ -26,6 +30,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.Deflater;
+import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
@@ -98,6 +104,9 @@ import org.w3c.dom.Element;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 import net.shibboleth.utilities.java.support.xml.XMLParserException;
+import org.opensaml.xmlsec.encryption.support.ChainingEncryptedKeyResolver;
+import org.opensaml.xmlsec.encryption.support.EncryptedKeyResolver;
+import org.opensaml.xmlsec.encryption.support.SimpleRetrievalMethodEncryptedKeyResolver;
 
 public class SamlClient {
   private static final Logger logger = LoggerFactory.getLogger(SamlClient.class);
@@ -282,7 +291,12 @@ public class SamlClient {
       throw new SamlException("Cannot decrypt the assertion", e);
     }
     //Validate  the response (Assertion / Signature / Schema)
-    ValidatorUtils.validate(response, responseIssuer, credentials, this.now, notBeforeSkew);
+    ValidatorUtils.validate(
+        response,
+        responseIssuer,
+        credentials,
+        this.now,
+        notBeforeSkew); //If this fails with REQUESTER = "urn:oasis:names:tc:SAML:2.0:status:Requester"; then the IDP is saying that the request was wrong.
 
     Assertion assertion = response.getAssertions().get(0);
     return new SamlResponse(assertion);
@@ -298,6 +312,12 @@ public class SamlClient {
    */
   public void redirectToIdentityProvider(HttpServletResponse response, String relayState)
       throws IOException, SamlException {
+
+    if (samlBinding == SamlClient.SamlIdpBinding.Redirect) {
+      response.sendRedirect(getRedirectURL(relayState));
+      return;
+    }
+
     Map<String, String> values = new HashMap<>();
     values.put("SAMLRequest", getSamlRequest());
     if (relayState != null) {
@@ -305,6 +325,70 @@ public class SamlClient {
     }
 
     BrowserUtils.postUsingBrowser(identityProviderUrl, response, values);
+  }
+
+  public String getRedirectURL(String relayState) throws IOException, SamlException {
+    //From https://medium.com/@sagarag/reloading-saml-saml-basics-b8999995c73e
+    //- RelayState is supported but should be limited to 80 bytes and it should be appended to the URL with “RelayState=value” format.
+    //- The SAML request is first compressed using DEFLATE compression mechanism and then encoded using Base64 finally it again need to be URL encoded.
+    //- For the request signing, it should use DSAWithSHA or RSAWithSHA algorithms.
+    //- HTTP Cache should not be used with this binding.
+    //- SAML processors should not use HTTP error codes instead SAML error coded need to be used.
+    //
+    //Following are the URL parameter names supported in this binding.
+    //- SAMLRequest — SAML request message
+    //- RelayState — RelayState value
+    //nb. these are additional to POST...
+    //- SAMLEncoding — indicate the SAML encoding mechanism
+    //- SigAlg — Signature algorithm identifier
+    //- Signature — Base64 encoded signature value
+    //
+    //Example: https://localhost:9443/samlsso?SAMLRequest=nZPBjpskDyneY4s...&SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1&Signature=VoTUhZQVI1y...
+    //
+    //From: https://www.oasis-open.org/committees/download.php/35387/sstc-saml-bindings-errata-2.0-wd-05-diff.pdf
+    //1. Any signature on the SAML protocol message, including the <ds:Signature> XML element itself,MUST be removed.
+    //   Note that if the content of the message includes another signature, such as asigned SAML assertion, this embedded signature is not removed.
+    //   However, the length of such amessage after encoding essentially precludes using this mechanism.
+    //   Thus SAML protocolmessages that contain signed content SHOULD NOT be encoded using this mechanism.
+    //2. The DEFLATE compression mechanism, as specified in [RFC1951] is then applied to the entireremaining XML content of the original SAML protocol message.
+    //3. The compressed data is subsequently base64-encoded according to the rules specified in  IETFRFC 2045 [RFC2045].
+    //   Linefeeds or other whitespace MUST be removed from the result.
+    //4. The base-64 encoded data is then URL-encoded, and added to the URL as a query stringparameter which MUST be named SAMLRequest (if the message is a SAML request) or
+    //   SAMLResponse (if the message is a SAML response).
+    //5. If RelayState data is to accompany the SAML protocol message, it MUST be URL-encoded and placed in an additional query string parameter named RelayState.
+    //6. If the original SAML protocol message was signed using an XML digital signature, a new signaturecovering the encoded data as specified above MUST be attached using the rules stated below.
+    //
+    //SAMLRequest=value&RelayState=value&SigAlg=value "Finally, note that if there is no RelayState value, the entire parameter should be omitted from thesignature computation (and not included as an empty parameter name)."
+    //
+    StringBuilder sb = new StringBuilder();
+    sb.append("SAMLRequest=")
+        .append(URLEncoder.encode(getSamlRequest(SamlClient.SamlIdpBinding.Redirect), "UTF-8"));
+
+    if (relayState != null)
+      sb.append("&RelayState=").append(URLEncoder.encode(relayState, "UTF-8"));
+
+    sb.append("&SigAlg=")
+        .append(
+            "http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256"); //http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
+
+    byte[] bytesToSign = sb.toString().getBytes("UTF-8");
+    try {
+      java.security.Signature sig = java.security.Signature.getInstance("SHA256withRSA");
+      sig.initSign(spCredential.getPrivateKey());
+      sig.update(bytesToSign);
+      byte[] signature = sig.sign();
+      sb.append("&Signature=")
+          .append(URLEncoder.encode(Base64.encodeBase64String(signature), "UTF-8"));
+    } catch (NoSuchAlgorithmException | InvalidKeyException | java.security.SignatureException e) {
+      throw new SamlException("Unsupported algorithm. " + e);
+    }
+
+    sb.append("&SAMLEncoding=")
+        .append(
+            URLEncoder.encode(
+                "urn:oasis:names:tc:SAML:2.0:bindings:URL-Encoding:DEFLATE", "UTF-8")); //optional
+
+    return identityProviderUrl + "?" + sb.toString();
   }
 
   /**
@@ -753,9 +837,11 @@ public class SamlClient {
   /** Convert a SAML request to a base64-encoded String
    *
    * @param request The request to encode
+   * @param binding Whether we are doing a POST or Redirect
    * @throws SamlException if marshalling the request fails
    * */
-  private String marshallAndEncodeSamlObject(RequestAbstractType request) throws SamlException {
+  private String marshallAndEncodeSamlObject(RequestAbstractType request, SamlIdpBinding binding)
+      throws SamlException {
     StringWriter stringWriter;
     try {
       stringWriter = marshallXmlObject(request);
@@ -763,9 +849,43 @@ public class SamlClient {
       throw new SamlException("Error while marshalling SAML request to XML", e);
     }
 
-    logger.trace("Issuing SAML request: " + stringWriter.toString());
+    String requestStr = stringWriter.toString();
+    logger.trace("Issuing SAML request: " + requestStr);
 
-    return Base64.encodeBase64String(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
+    byte[] requestBytes;
+    if (binding == SamlClient.SamlIdpBinding.Redirect) {
+      try {
+        //For a Redirect we compress (deflate) the bytes before we Base64 them
+        InputStream input = new ByteArrayInputStream(requestStr.getBytes("UTF-8"));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        Deflater def = new Deflater(1, true);
+        DeflaterOutputStream compresser = new DeflaterOutputStream(output, def);
+        int len;
+        byte[] oneKay = new byte[1024];
+        while ((len = input.read(oneKay)) != -1) {
+          compresser.write(oneKay, 0, len);
+        }
+        compresser.flush();
+        compresser.finish();
+        requestBytes = output.toByteArray();
+      } catch (IOException e) {
+        throw new SamlException("Failed to deflate request for redirect.", e);
+      }
+    } else {
+      //For a POST we just Base64 the bytes
+      requestBytes = requestStr.getBytes(StandardCharsets.UTF_8);
+    }
+    return Base64.encodeBase64String(requestBytes);
+  }
+
+  /**
+   * Builds an encoded SAML request for the POST binding.
+   *
+   * @return The base-64 encoded SAML request.
+   * @throws SamlException thrown if an unexpected error occurs.
+   */
+  public String getSamlRequest() throws SamlException {
+    return getSamlRequest(SamlClient.SamlIdpBinding.POST);
   }
 
   /**
@@ -774,7 +894,7 @@ public class SamlClient {
    * @return The base-64 encoded SAML request.
    * @throws SamlException thrown if an unexpected error occurs.
    */
-  public String getSamlRequest() throws SamlException {
+  public String getSamlRequest(SamlIdpBinding binding) throws SamlException {
     AuthnRequest request = (AuthnRequest) getBasicSamlRequest(AuthnRequest.DEFAULT_ELEMENT_NAME);
 
     request.setProtocolBinding(
@@ -786,13 +906,15 @@ public class SamlClient {
     nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
     request.setNameIDPolicy(nameIDPolicy);
 
-    signSAMLObject(request);
+    if (binding != SamlClient.SamlIdpBinding.Redirect) signSAMLObject(request);
 
-    return marshallAndEncodeSamlObject(request);
+    return marshallAndEncodeSamlObject(request, binding);
   }
 
   /**
    * Gets the encoded logout request.
+   *
+   * Assumes use of POST.
    *
    * @param nameId the name id
    * @return the logout request
@@ -807,7 +929,7 @@ public class SamlClient {
 
     signSAMLObject(request);
 
-    return marshallAndEncodeSamlObject(request);
+    return marshallAndEncodeSamlObject(request, SamlClient.SamlIdpBinding.POST);
   }
   /**
    * Gets saml logout response.
@@ -951,13 +1073,19 @@ public class SamlClient {
 
       if (!additionalSpCredentials.isEmpty()) {
         resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
-      }
+      }      
 
+      //4.1.2-datb-2 A275378 If encrypted assertions use RetrievalMethod to refer to an EncryptedKey using a URI within the 
+      //document then SimpleRetrievalMethodEncryptedKeyResolver is needed to resolve these. 
+      List<EncryptedKeyResolver> ekResolverList = new ArrayList<>();
+      ekResolverList.add( new InlineEncryptedKeyResolver() );
+      ekResolverList.add( new SimpleRetrievalMethodEncryptedKeyResolver() );  
+      
       Decrypter decrypter =
           new Decrypter(
               null,
               new ChainingKeyInfoCredentialResolver(resolverChain),
-              new InlineEncryptedKeyResolver());
+              new ChainingEncryptedKeyResolver( ekResolverList ) );
 
       decrypter.setRootInNewDocument(true);
 
@@ -988,6 +1116,22 @@ public class SamlClient {
   }
 
   /**
+   * Load an X.509 certificate
+   * @param bis An input stream providing the bytes of the key.
+   * */
+  private X509Certificate loadCertificate(InputStream bis) throws SamlException {
+    try {
+
+      CertificateFactory cf = CertificateFactory.getInstance("X.509");
+
+      return (X509Certificate) cf.generateCertificate(bis);
+
+    } catch (Exception e) {
+      throw new SamlException("Couldn't load public key", e);
+    }
+  }
+
+  /**
    * Load a PKCS8 key
    * @param filename The path of the key
    * */
@@ -1002,6 +1146,40 @@ public class SamlClient {
 
     } catch (FileNotFoundException e) {
       throw new SamlException("Private key file doesn't exist", e);
+    } catch (Exception e) {
+      throw new SamlException("Couldn't load private key", e);
+    }
+  }
+
+  /**
+   * Load a PKCS8 key
+   * @param bis An input stream providing the bytes of the key.
+   * */
+  private PrivateKey loadPrivateKey(InputStream bis) throws SamlException {
+    try //(RandomAccessFile raf = new RandomAccessFile(filename, "r"))
+    {
+
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+      int totalBytes = 0;
+      byte[] onekay = new byte[1024];
+      int bytesRead = 0;
+      while (true) {
+        bytesRead = bis.read(onekay);
+
+        if (bytesRead == -1) break;
+
+        if (bytesRead > 0) baos.write(onekay, 0, bytesRead);
+      }
+      bis.close();
+      baos.flush();
+      baos.close();
+
+      PKCS8EncodedKeySpec kspec = new PKCS8EncodedKeySpec(baos.toByteArray());
+      KeyFactory kf = KeyFactory.getInstance("RSA");
+
+      return kf.generatePrivate(kspec);
+
     } catch (Exception e) {
       throw new SamlException("Couldn't load private key", e);
     }
@@ -1061,5 +1239,14 @@ public class SamlClient {
         throw new SamlException("Failed to sign request", e);
       }
     }
+  }
+
+  /**
+   * Get the response issuer.
+   *
+   * @return
+   */
+  public String getResponseIssuer() {
+    return responseIssuer;
   }
 }
