@@ -104,6 +104,7 @@ public class SamlClient {
 
   private static final String HTTP_REQ_SAML_PARAM = "SAMLRequest";
   private static final String HTTP_RESP_SAML_PARAM = "SAMLResponse";
+  private static final String DEFAULT_NAMEID_POLICY_FORMAT = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified";
 
   private static boolean initializedOpenSaml = false;
   private BasicParserPool domParser;
@@ -117,6 +118,7 @@ public class SamlClient {
   private String assertionConsumerServiceUrl;
   private String identityProviderUrl;
   private String responseIssuer;
+  private String nameIdPolicyFormat = DEFAULT_NAMEID_POLICY_FORMAT;
   private List<Credential> credentials;
   private Instant now; // used for testing only
   private long notBeforeSkew = 0L;
@@ -155,6 +157,15 @@ public class SamlClient {
       throw new IllegalArgumentException("Skew must be non-negative");
     }
     this.notBeforeSkew = notBeforeSkew;
+  }
+
+  /**
+   * Set a {@link NameIDPolicy} format for the NameIDPolicy used in the {@link AuthnRequest}.
+   *
+   * @param nameIdPolicyFormat the NameIDPolicy format to use
+   */
+  public void setNameIdPolicyFormat(String nameIdPolicyFormat) {
+    this.nameIdPolicyFormat = nameIdPolicyFormat;
   }
 
   /**
@@ -783,7 +794,7 @@ public class SamlClient {
     request.setAssertionConsumerServiceURL(assertionConsumerServiceUrl);
 
     NameIDPolicy nameIDPolicy = (NameIDPolicy) buildSamlObject(NameIDPolicy.DEFAULT_ELEMENT_NAME);
-    nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
+    nameIDPolicy.setFormat(nameIdPolicyFormat);
     request.setNameIDPolicy(nameIDPolicy);
 
     signSAMLObject(request);

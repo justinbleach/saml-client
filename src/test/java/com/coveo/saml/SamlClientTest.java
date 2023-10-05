@@ -116,6 +116,17 @@ public class SamlClientTest {
   }
 
   @Test
+  public void getSamlRequestReturnsAnEncodedRequestWithNameIDPolicy() throws Throwable {
+    SamlClient client =
+            SamlClient.fromMetadata(
+                    "myidentifier", "http://some/url", getXml("adfs.xml"), SamlClient.SamlIdpBinding.POST);
+    client.setNameIdPolicyFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress");
+    String decoded =
+            new String(Base64.decodeBase64(client.getSamlRequest()), StandardCharsets.UTF_8);
+    assertTrue(decoded.contains("urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"));
+  }
+
+  @Test
   public void decodeAndValidateSamlResponseCanDecodeAnSamlResponse() throws Throwable {
     SamlClient client =
         SamlClient.fromMetadata(
