@@ -65,13 +65,11 @@
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>
       <version>3.1.0</version>
-      <scope>provided</scope><!-- Must be specified as provided because of the license -->
     </dependency>
     <dependency>
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
       <version>6.0.0</version>
-      <scope>provided</scope><!-- Must be specified as provided because of the license -->
   </dependency>
     <dependency>
       <groupId>org.opensaml</groupId>
