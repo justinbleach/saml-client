@@ -5,6 +5,8 @@ import org.apache.commons.text.StringEscapeUtils;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Map;
 
 public class BrowserUtils {
@@ -15,6 +17,9 @@ public class BrowserUtils {
    * @param values the values to include in the POST.
    * @throws IOException thrown if an IO error occurs.
    */
+  private static final int NONCE_SIZE = 64;
+  private static SecureRandom secureRandom = new SecureRandom();
+
   public static void postUsingBrowser(
       String url, HttpServletResponse response, Map<String, String> values) throws IOException {
 
@@ -39,10 +44,17 @@ public class BrowserUtils {
               + "'/>");
     }
 
+    byte[] nonceBytes = new byte[NONCE_SIZE];
+    secureRandom.nextBytes(nonceBytes);
+    String nonce = Base64.getEncoder().encodeToString(nonceBytes);
+
     writer.write(
-        "</form><script type='text/javascript'>document.getElementById('TheForm').submit();</script></body></html>");
+        "</form><script type='text/javascript' nonce='"
+            + nonce
+            + "'>document.getElementById('TheForm').submit();</script></body></html>");
     writer.flush();
 
+    response.setHeader("Content-Security-Policy", "script-src 'nonce-" + nonce + "'");
     response.setHeader("Cache-Control", "no-cache, no-store");
     response.setHeader("Pragma", "no-cache");
   }
