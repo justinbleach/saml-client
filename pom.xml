@@ -4,7 +4,7 @@
 
   <groupId>com.coveo</groupId>
   <artifactId>saml-client</artifactId>
-  <version>4.1.2</version>
+  <version>5.0.0</version>
   <packaging>jar</packaging>
 
   <name>${project.groupId}:${project.artifactId}</name>
@@ -26,6 +26,12 @@
       <organizationUrl>https://github.com/coveooss</organizationUrl>
     </developer>
   </developers>
+
+  <scm>
+    <connection>scm:git:git@github.com:coveooss/saml-client.git</connection>
+    <developerConnection>scm:git:git@github.com:coveooss/saml-client.git</developerConnection>
+    <url>https://github.com/coveooss/saml-client</url>
+  </scm>
 
   <distributionManagement>
     <snapshotRepository>
