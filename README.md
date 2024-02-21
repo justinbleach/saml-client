@@ -23,6 +23,25 @@ Add this dependency to your `pom.xml` to reference the library:
     </dependency>
 ```
 
+[OpenSAML](https://shibboleth.atlassian.net/wiki/spaces/OSAML) latest versions are strictly hosted on Shibboleth repository. Therefore, to use this library, you need to add this to your `pom.xml` as well : 
+```xml
+  <repositories>
+    <repository>
+      <id>shibboleth</id>
+      <url>https://build.shibboleth.net/maven/releases</url>
+    </repository>
+  </repositories>
+```
+or with Gradle : 
+```asciidoc
+repositories {
+    maven {
+        url 'https://build.shibboleth.net/maven/releases'
+    }
+    mavenCentral()
+}
+```
+
 # Usage
 
 ## SAML authentication process overview
