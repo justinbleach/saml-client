@@ -2,6 +2,7 @@ package com.coveo.saml;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 import org.opensaml.saml.common.SignableSAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
@@ -64,7 +65,7 @@ class ValidatorUtils {
    */
   private static void validateIssuer(StatusResponseType response, String responseIssuer)
       throws SamlException {
-    if (!response.getIssuer().getValue().equals(responseIssuer)) {
+    if (!Objects.equals(response.getIssuer().getValue(), responseIssuer)) {
       throw new SamlException("The response issuer didn't match the expected value");
     }
   }
@@ -77,7 +78,7 @@ class ValidatorUtils {
    */
   private static void validateIssuer(RequestAbstractType request, String requestIssuer)
       throws SamlException {
-    if (!request.getIssuer().getValue().equals(requestIssuer)) {
+    if (!Objects.equals(request.getIssuer().getValue(), requestIssuer)) {
       throw new SamlException("The request issuer didn't match the expected value");
     }
   }
@@ -98,7 +99,7 @@ class ValidatorUtils {
     }
 
     Assertion assertion = response.getAssertions().get(0);
-    if (!assertion.getIssuer().getValue().equals(responseIssuer)) {
+    if (!Objects.equals(assertion.getIssuer().getValue(), responseIssuer)) {
       throw new SamlException("The assertion issuer didn't match the expected value");
     }
 
@@ -125,12 +126,12 @@ class ValidatorUtils {
     Instant notBefore = conditions.getNotBefore();
     Instant skewedNotBefore = notBefore.minusSeconds(notBeforeSkew);
     if (now.isBefore(skewedNotBefore)) {
-      throw new SamlException("The assertion cannot be used before " + notBefore.toString());
+      throw new SamlException("The assertion cannot be used before " + notBefore);
     }
 
     Instant notOnOrAfter = conditions.getNotOnOrAfter();
     if (now.isAfter(notOnOrAfter)) {
-      throw new SamlException("The assertion cannot be used after  " + notOnOrAfter.toString());
+      throw new SamlException("The assertion cannot be used after  " + notOnOrAfter);
     }
   }
 
