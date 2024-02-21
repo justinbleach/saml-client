@@ -10,7 +10,7 @@
   <name>${project.groupId}:${project.artifactId}</name>
 
   <description>Dead simple client for obtaining authentication from SAML identity provider</description>
-  <url>http://github.com/coveo/saml-client</url>
+  <url>https://github.com/coveo/saml-client</url>
 
   <licenses>
     <license>
@@ -23,15 +23,9 @@
     <developer>
       <name>Martin Laporte</name>
       <organization>Coveo</organization>
-      <organizationUrl>http://github.com/coveo</organizationUrl>
+      <organizationUrl>https://github.com/coveooss</organizationUrl>
     </developer>
   </developers>
-
-  <scm>
-    <connection>scm:git:git@github.com:coveo/saml-client.git</connection>
-    <developerConnection>scm:git:git@github.com:coveo/saml-client.git</developerConnection>
-    <url>http://github.com/coveo/saml-client</url>
-  </scm>
 
   <distributionManagement>
     <snapshotRepository>
@@ -47,7 +41,7 @@
   <repositories>
     <repository>
       <id>shibboleth</id>
-      <url>https://build.shibboleth.net/nexus/content/repositories/releases/</url>
+      <url>https://build.shibboleth.net/maven/releases</url>
     </repository>
   </repositories>
 
@@ -60,36 +54,41 @@
     <opensaml.version>4.3.0</opensaml.version>
   </properties>
 
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.opensaml</groupId>
+        <artifactId>opensaml-bom</artifactId>
+        <version>${opensaml.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
-    <dependency>
-      <groupId>javax.servlet</groupId>
-      <artifactId>javax.servlet-api</artifactId>
-      <version>3.1.0</version>
-    </dependency>
     <dependency>
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
       <version>6.0.0</version>
+      <scope>provided</scope>
   </dependency>
     <dependency>
       <groupId>org.opensaml</groupId>
       <artifactId>opensaml-core</artifactId>
-      <version>${opensaml.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opensaml</groupId>
       <artifactId>opensaml-saml-api</artifactId>
-      <version>${opensaml.version}</version>
     </dependency>
     <dependency>
       <groupId>org.opensaml</groupId>
       <artifactId>opensaml-saml-impl</artifactId>
-      <version>${opensaml.version}</version>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
-      <version>2.0.9</version>
+      <version>2.0.12</version>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
@@ -157,19 +156,6 @@
             <phase>verify</phase>
             <goals>
               <goal>format</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>versions-maven-plugin</artifactId>
-        <version>2.16.0</version>
-        <executions>
-          <execution>
-            <id>use-next-releases</id>
-            <goals>
-              <goal>use-next-releases</goal>
             </goals>
           </execution>
         </executions>

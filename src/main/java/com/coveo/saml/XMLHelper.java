@@ -126,13 +126,12 @@ public class XMLHelper {
     DOMImplementationLS domImplLS = (DOMImplementationLS) domImpl.getFeature("LS", "3.0");
     return domImplLS;
   }
-  
-  
+
   /**
-   * Creates a DOM parser 
-   * 
+   * Creates a DOM parser
+   *
    * @return BasicParserPool
-   * 
+   *
    * @throws SamlException
    */
   public static BasicParserPool createDOMParser() throws SamlException {
