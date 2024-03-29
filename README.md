@@ -1,12 +1,6 @@
 [![MIT license](http://img.shields.io/badge/license-MIT-brightgreen.svg)](https://github.com/coveo/saml-client/blob/master/LICENSE)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.coveo/saml-client/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.coveo/saml-client)
 
-# 🚨 This project is no longer maintained and looking for an owner 🚨
-
-We are no longer using this project internally at Coveo, and we don't have time to properly maintain it. If you are interested in taking over the project, please open an issue to let us know.
-
-Thanks everyone for your contributions over the years!
-
 # Dead Simple SAML 2.0 Client
 
 This library implements a very simple SAML 2.0 client that allows retrieving an authenticated identity from a compliant identity provider, using the HTTP POST binding.
