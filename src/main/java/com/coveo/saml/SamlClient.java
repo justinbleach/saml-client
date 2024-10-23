@@ -132,6 +132,7 @@ public class SamlClient {
   private SamlIdpBinding samlBinding;
   private BasicX509Credential spCredential;
   private List<Credential> additionalSpCredentials = new ArrayList<>();
+  private boolean forceAuthn; //2.34.1 C281958
 
   /**
    * Returns the url where SAML requests should be posted.
@@ -906,6 +907,9 @@ public class SamlClient {
     nameIDPolicy.setFormat("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified");
     request.setNameIDPolicy(nameIDPolicy);
 
+    //2.34.1 C281958
+    if (forceAuthn) request.setForceAuthn(true);
+
     if (binding != SamlClient.SamlIdpBinding.Redirect) signSAMLObject(request);
 
     return marshallAndEncodeSamlObject(request, binding);
@@ -1073,14 +1077,14 @@ public class SamlClient {
 
       if (!additionalSpCredentials.isEmpty()) {
         resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
-      }      
+      }
 
-      //4.1.2-datb-2 A275378 If encrypted assertions use RetrievalMethod to refer to an EncryptedKey using a URI within the 
-      //document then SimpleRetrievalMethodEncryptedKeyResolver is needed to resolve these. 
+      //4.1.2-datb-2 A275378 If encrypted assertions use RetrievalMethod to refer to an EncryptedKey using a URI within the
+      //document then SimpleRetrievalMethodEncryptedKeyResolver is needed to resolve these.
       List<EncryptedKeyResolver> ekResolverList = new ArrayList<>();
       ekResolverList.add( new InlineEncryptedKeyResolver() );
       ekResolverList.add( new SimpleRetrievalMethodEncryptedKeyResolver() );  
-      
+
       Decrypter decrypter =
           new Decrypter(
               null,
@@ -1248,5 +1252,14 @@ public class SamlClient {
    */
   public String getResponseIssuer() {
     return responseIssuer;
+  }
+
+  /**
+   * Set whether to set the forceAuthn flag on any SamlRequests.
+   *
+   * 2.34.1 C281958
+   */
+  public void setForceAuthn(boolean forceAuthn) {
+    this.forceAuthn = forceAuthn;
   }
 }
