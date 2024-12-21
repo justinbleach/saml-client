@@ -1,4 +1,3 @@
-[![Build Status](https://travis-ci.org/coveo/saml-client.svg?branch=master)](https://travis-ci.org/coveo/saml-client)
 [![MIT license](http://img.shields.io/badge/license-MIT-brightgreen.svg)](https://github.com/coveo/saml-client/blob/master/LICENSE)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.coveo/saml-client/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.coveo/saml-client)
 
@@ -20,8 +19,27 @@ Add this dependency to your `pom.xml` to reference the library:
     <dependency>
       <groupId>com.coveo</groupId>
       <artifactId>saml-client</artifactId>
-      <version>4.1.2</version>
+      <version>5.0.0</version>
     </dependency>
+```
+
+[OpenSAML](https://shibboleth.atlassian.net/wiki/spaces/OSAML) latest versions are strictly hosted on Shibboleth repository. Therefore, to use this library, you need to add this to your `pom.xml` as well : 
+```xml
+  <repositories>
+    <repository>
+      <id>shibboleth</id>
+      <url>https://build.shibboleth.net/maven/releases</url>
+    </repository>
+  </repositories>
+```
+or with Gradle : 
+```asciidoc
+repositories {
+    maven {
+        url 'https://build.shibboleth.net/maven/releases'
+    }
+    mavenCentral()
+}
 ```
 
 # Usage

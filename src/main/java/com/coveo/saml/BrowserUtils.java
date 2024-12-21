@@ -1,8 +1,8 @@
 package com.coveo.saml;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.text.StringEscapeUtils;
 
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Map;
@@ -19,8 +19,16 @@ public class BrowserUtils {
       String url, HttpServletResponse response, Map<String, String> values) throws IOException {
 
     response.setContentType("text/html");
-    @SuppressWarnings("resource")
     Writer writer = response.getWriter();
+    writeHtml(url, values, writer);
+    writer.flush();
+
+    response.setHeader("Cache-Control", "no-cache, no-store");
+    response.setHeader("Pragma", "no-cache");
+  }
+
+  private static void writeHtml(String url, Map<String, String> values, Writer writer)
+      throws IOException {
     writer.write(
         "<html><head></head><body><form id='TheForm' action='"
             + StringEscapeUtils.escapeHtml4(url)
@@ -41,9 +49,5 @@ public class BrowserUtils {
 
     writer.write(
         "</form><script type='text/javascript'>document.getElementById('TheForm').submit();</script></body></html>");
-    writer.flush();
-
-    response.setHeader("Cache-Control", "no-cache, no-store");
-    response.setHeader("Pragma", "no-cache");
   }
 }
