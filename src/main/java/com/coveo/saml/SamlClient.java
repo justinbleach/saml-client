@@ -17,6 +17,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,14 +29,13 @@ import java.util.stream.Stream;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.namespace.QName;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BOMInputStream;
-import org.joda.time.DateTime;
 import org.opensaml.core.config.InitializationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
@@ -77,7 +77,10 @@ import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureSigningParameters;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
+import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
+import org.opensaml.xmlsec.keyinfo.impl.ChainingKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.impl.CollectionKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
 import org.opensaml.xmlsec.keyinfo.impl.X509KeyInfoGeneratorFactory;
 import org.opensaml.xmlsec.signature.SignableXMLObject;
@@ -103,22 +106,23 @@ public class SamlClient {
   private static final String HTTP_RESP_SAML_PARAM = "SAMLResponse";
 
   private static boolean initializedOpenSaml = false;
-  private BasicParserPool domParser;
+  private final BasicParserPool domParser;
 
   public enum SamlIdpBinding {
     POST,
-    Redirect;
+    Redirect
   }
 
-  private String relyingPartyIdentifier;
-  private String assertionConsumerServiceUrl;
-  private String identityProviderUrl;
-  private String responseIssuer;
-  private List<Credential> credentials;
-  private DateTime now; // used for testing only
+  private final String relyingPartyIdentifier;
+  private final String assertionConsumerServiceUrl;
+  private final String identityProviderUrl;
+  private final String responseIssuer;
+  private final List<Credential> credentials;
+  private Instant now; // used for testing only
   private long notBeforeSkew = 0L;
-  private SamlIdpBinding samlBinding;
+  private final SamlIdpBinding samlBinding;
   private BasicX509Credential spCredential;
+  private List<Credential> additionalSpCredentials = new ArrayList<>();
 
   /**
    * Returns the url where SAML requests should be posted.
@@ -134,13 +138,12 @@ public class SamlClient {
    *
    * @param now the date to use for now.
    */
-  public void setDateTimeNow(DateTime now) {
+  public void setInstantNow(Instant now) {
     this.now = now;
   }
 
   /**
    * Sets by how much the current time can be before the assertion's notBefore.
-   *
    * Used to mitigate clock differences between the identity provider and relying party.
    *
    * @param notBeforeSkew non-negative amount of skew (in milliseconds) to allow between the
@@ -194,9 +197,10 @@ public class SamlClient {
     this.assertionConsumerServiceUrl = assertionConsumerServiceUrl;
     this.identityProviderUrl = identityProviderUrl;
     this.responseIssuer = responseIssuer;
-    credentials = certificates.stream().map(SamlClient::getCredential).collect(Collectors.toList());
+    this.credentials =
+        certificates.stream().map(SamlClient::getCredential).collect(Collectors.toList());
     this.samlBinding = samlBinding;
-    this.domParser = createDOMParser();
+    this.domParser = XMLHelper.createDOMParser();
   }
 
   /**
@@ -444,11 +448,10 @@ public class SamlClient {
    */
   private static InputStream skipBom(Reader metadata) throws SamlException {
     try {
-      InputStream metadataInputStream;
-      metadataInputStream =
+      InputStream metadataInputStream =
           IOUtils.toInputStream(IOUtils.toString(metadata), StandardCharsets.UTF_8);
 
-      return new BOMInputStream(metadataInputStream, false);
+      return BOMInputStream.builder().setInclude(false).setInputStream(metadataInputStream).get();
     } catch (IOException e) {
       throw new SamlException("Couldn't read metadata", e);
     }
@@ -484,21 +487,10 @@ public class SamlClient {
     }
   }
 
-  private static BasicParserPool createDOMParser() throws SamlException {
-    BasicParserPool basicParserPool = new BasicParserPool();
-    try {
-      basicParserPool.initialize();
-    } catch (ComponentInitializationException e) {
-      throw new SamlException("Failed to create an XML parser");
-    }
-
-    return basicParserPool;
-  }
-
   private static DOMMetadataResolver createMetadataResolver(InputStream metadata)
       throws SamlException {
     try {
-      BasicParserPool parser = createDOMParser();
+      BasicParserPool parser = XMLHelper.createDOMParser();
       Document metadataDocument = parser.parse(metadata);
       DOMMetadataResolver resolver = new DOMMetadataResolver(metadataDocument.getDocumentElement());
       resolver.setId(
@@ -625,6 +617,7 @@ public class SamlClient {
 
     ValidatorUtils.validate(logoutRequest, responseIssuer, credentials, nameID);
   }
+
   /**
    * Set service provider keys.
    *
@@ -633,12 +626,24 @@ public class SamlClient {
    * @throws SamlException if publicKey and privateKey don't form a valid credential
    */
   public void setSPKeys(String publicKey, String privateKey) throws SamlException {
+    this.spCredential = generateBasicX509Credential(publicKey, privateKey);
+  }
+
+  /**
+   * generate an X509Credential from the provided key and cert.
+   *
+   * @param publicKey  the public key
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  private BasicX509Credential generateBasicX509Credential(String publicKey, String privateKey)
+      throws SamlException {
     if (publicKey == null || privateKey == null) {
       throw new SamlException("No credentials provided");
     }
     PrivateKey pk = loadPrivateKey(privateKey);
     X509Certificate cert = loadCertificate(publicKey);
-    spCredential = new BasicX509Credential(cert, pk);
+    return new BasicX509Credential(cert, pk);
   }
 
   /**
@@ -653,6 +658,34 @@ public class SamlClient {
       throw new SamlException("No credentials provided");
     }
     spCredential = new BasicX509Credential(certificate, privateKey);
+  }
+
+  /**
+   * Add an additional service provider certificate/key pair for decryption.
+   *
+   * @param publicKey  the public key
+   * @param privateKey the private key
+   * @throws SamlException if publicKey and privateKey don't form a valid credential
+   */
+  public void addAdditionalSPKey(String publicKey, String privateKey) throws SamlException {
+    additionalSpCredentials.add(generateBasicX509Credential(publicKey, privateKey));
+  }
+
+  /**
+   * Add an additional service provider certificate/key pair for decryption.
+   *
+   * @param certificate the certificate
+   * @param privateKey the private key
+   */
+  public void addAdditionalSPKey(X509Certificate certificate, PrivateKey privateKey) {
+    additionalSpCredentials.add(new BasicX509Credential(certificate, privateKey));
+  }
+
+  /**
+   * Remove all additional service provider decryption certificate/key pairs.
+   */
+  public void clearAdditionalSPKeys() {
+    additionalSpCredentials = new ArrayList<>();
   }
 
   /**
@@ -690,10 +723,10 @@ public class SamlClient {
    * */
   private RequestAbstractType getBasicSamlRequest(QName defaultElementName) {
     RequestAbstractType request = (RequestAbstractType) buildSamlObject(defaultElementName);
-    request.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
+    request.setID("z" + UUID.randomUUID()); // ADFS needs IDs to start with a letter
 
     request.setVersion(SAMLVersion.VERSION_20);
-    request.setIssueInstant(DateTime.now());
+    request.setIssueInstant(Instant.now());
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
     issuer.setValue(relyingPartyIdentifier);
@@ -715,7 +748,7 @@ public class SamlClient {
       throw new SamlException("Error while marshalling SAML request to XML", e);
     }
 
-    logger.trace("Issuing SAML request: " + stringWriter.toString());
+    logger.trace("Issuing SAML request: " + stringWriter);
 
     return Base64.encodeBase64String(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
   }
@@ -782,10 +815,10 @@ public class SamlClient {
   public String getSamlLogoutResponse(final String status, final String statMsg)
       throws SamlException {
     LogoutResponse response = (LogoutResponse) buildSamlObject(LogoutResponse.DEFAULT_ELEMENT_NAME);
-    response.setID("z" + UUID.randomUUID().toString()); // ADFS needs IDs to start with a letter
+    response.setID("z" + UUID.randomUUID()); // ADFS needs IDs to start with a letter
 
     response.setVersion(SAMLVersion.VERSION_20);
-    response.setIssueInstant(DateTime.now());
+    response.setIssueInstant(Instant.now());
 
     Issuer issuer = (Issuer) buildSamlObject(Issuer.DEFAULT_ELEMENT_NAME);
     issuer.setValue(relyingPartyIdentifier);
@@ -798,7 +831,7 @@ public class SamlClient {
     stat.setStatusCode(statCode);
     if (statMsg != null) {
       StatusMessage statMessage = new StatusMessageBuilder().buildObject();
-      statMessage.setMessage(statMsg);
+      statMessage.setValue(statMsg);
       stat.setStatusMessage(statMessage);
     }
     response.setStatus(stat);
@@ -812,10 +845,11 @@ public class SamlClient {
       throw new SamlException("Error while marshalling SAML request to XML", ex);
     }
 
-    logger.trace("Issuing SAML Logout request: " + stringWriter.toString());
+    logger.trace("Issuing SAML Logout request: " + stringWriter);
 
     return Base64.encodeBase64String(stringWriter.toString().getBytes(StandardCharsets.UTF_8));
   }
+
   /**
    * Processes a POST containing the SAML logout request.
    *
@@ -828,6 +862,7 @@ public class SamlClient {
     String encodedResponse = request.getParameter(HTTP_REQ_SAML_PARAM);
     decodeAndValidateSamlLogoutRequest(encodedResponse, nameID, request.getMethod());
   }
+
   /**
    * Processes a POST containing the SAML response.
    *
@@ -840,6 +875,7 @@ public class SamlClient {
     String encodedResponse = request.getParameter(HTTP_RESP_SAML_PARAM);
     return decodeAndValidateSamlLogoutResponse(encodedResponse, request.getMethod());
   }
+
   /**
    * Redirects an {@link HttpServletResponse} to the configured identity provider.
    *
@@ -895,10 +931,20 @@ public class SamlClient {
     }
     for (EncryptedAssertion encryptedAssertion : response.getEncryptedAssertions()) {
       // Create a decrypter.
+      List<KeyInfoCredentialResolver> resolverChain = new ArrayList<>();
+
+      if (spCredential != null) {
+        resolverChain.add(new StaticKeyInfoCredentialResolver(spCredential));
+      }
+
+      if (!additionalSpCredentials.isEmpty()) {
+        resolverChain.add(new CollectionKeyInfoCredentialResolver(additionalSpCredentials));
+      }
+
       Decrypter decrypter =
           new Decrypter(
               null,
-              new StaticKeyInfoCredentialResolver(spCredential),
+              new ChainingKeyInfoCredentialResolver(resolverChain),
               new InlineEncryptedKeyResolver());
 
       decrypter.setRootInNewDocument(true);

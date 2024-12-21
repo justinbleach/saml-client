@@ -1,8 +1,8 @@
 package com.coveo.saml;
 
-import org.apache.commons.lang.StringEscapeUtils;
+import jakarta.servlet.http.HttpServletResponse;
+import org.apache.commons.text.StringEscapeUtils;
 
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Map;
@@ -19,16 +19,24 @@ public class BrowserUtils {
       String url, HttpServletResponse response, Map<String, String> values) throws IOException {
 
     response.setContentType("text/html");
-    @SuppressWarnings("resource")
     Writer writer = response.getWriter();
+    writeHtml(url, values, writer);
+    writer.flush();
+
+    response.setHeader("Cache-Control", "no-cache, no-store");
+    response.setHeader("Pragma", "no-cache");
+  }
+
+  private static void writeHtml(String url, Map<String, String> values, Writer writer)
+      throws IOException {
     writer.write(
         "<html><head></head><body><form id='TheForm' action='"
-            + StringEscapeUtils.escapeHtml(url)
+            + StringEscapeUtils.escapeHtml4(url)
             + "' method='POST'>");
 
     for (String key : values.keySet()) {
-      String encodedKey = StringEscapeUtils.escapeHtml(key);
-      String encodedValue = StringEscapeUtils.escapeHtml(values.get(key));
+      String encodedKey = StringEscapeUtils.escapeHtml4(key);
+      String encodedValue = StringEscapeUtils.escapeHtml4(values.get(key));
       writer.write(
           "<input type='hidden' id='"
               + encodedKey
@@ -41,9 +49,5 @@ public class BrowserUtils {
 
     writer.write(
         "</form><script type='text/javascript'>document.getElementById('TheForm').submit();</script></body></html>");
-    writer.flush();
-
-    response.setHeader("Cache-Control", "no-cache, no-store");
-    response.setHeader("Pragma", "no-cache");
   }
 }
