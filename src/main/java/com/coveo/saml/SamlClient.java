@@ -60,6 +60,7 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.NameIDPolicy;
 import org.opensaml.saml.saml2.core.RequestAbstractType;
 import org.opensaml.saml.saml2.core.Response;
+import org.opensaml.saml.saml2.core.SessionIndex;
 import org.opensaml.saml.saml2.core.Status;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.saml.saml2.core.StatusMessage;
@@ -784,11 +785,39 @@ public class SamlClient {
    * @throws SamlException the saml exception
    */
   public String getLogoutRequest(String nameId) throws SamlException {
+    return getLogoutRequest(nameId, null, null, null);
+  }
+
+  /**
+   * Gets the encoded logout request, optionally including 
+   * additional details about the user and session.
+   *
+   * @param nameId the name id
+   * @param nameIdFormat Optional format used for the name id
+   * @param sessionIndex Optional session to be terminated
+   * @param destination Optional URI of the destination of the request
+   * @return the logout request
+   * @throws SamlException if signing fails, or if marshalling the request fails
+   */
+  public String getLogoutRequest(
+      String nameId, String nameIdFormat, String sessionIndex, String destination)
+      throws SamlException {
     LogoutRequest request = (LogoutRequest) getBasicSamlRequest(LogoutRequest.DEFAULT_ELEMENT_NAME);
 
     NameID nid = (NameID) buildSamlObject(NameID.DEFAULT_ELEMENT_NAME);
     nid.setValue(nameId);
+    if (nameIdFormat != null) {
+      nid.setFormat(nameIdFormat);
+    }
     request.setNameID(nid);
+    if (sessionIndex != null) {
+      SessionIndex element = (SessionIndex) buildSamlObject(SessionIndex.DEFAULT_ELEMENT_NAME);
+      element.setSessionIndex(sessionIndex);
+      request.getSessionIndexes().add(element);
+    }
+    if (destination != null) {
+      request.setDestination(destination);
+    }
 
     signSAMLObject(request);
 
@@ -888,8 +917,27 @@ public class SamlClient {
   public void redirectToIdentityProvider(
       HttpServletResponse response, String relayState, String nameId)
       throws IOException, SamlException {
+    redirectToIdentityProvider(response, relayState, nameId, null, null, null);
+  }
+  /**
+   * Redirects an {@link HttpServletResponse} to the configured identity provider,  
+   * including additional details to be sent to the IDP (required by ADFS).
+   *
+   * @param response   The {@link HttpServletResponse}.
+   * @param relayState Optional relay state that will be passed along.
+   * @param nameId the user to log out.
+   * @param nameIdFormat the format used for the NameID (if required).
+   * @param sessionIndex the session to be terminated.
+   * @param destination the IDP logout URL.
+   * @throws IOException   thrown if an IO error occurs.
+   * @throws SamlException thrown is an unexpected error occurs.
+   */
+  public void redirectToIdentityProvider(
+      HttpServletResponse response, String relayState, String nameId, 
+      String nameIdFormat, String sessionIndex, String destination)
+      throws IOException, SamlException {
     Map<String, String> values = new HashMap<>();
-    values.put("SAMLRequest", getLogoutRequest(nameId));
+    values.put("SAMLRequest", getLogoutRequest(nameId, nameIdFormat, sessionIndex, destination));
     if (relayState != null) {
       values.put("RelayState", relayState);
     }
